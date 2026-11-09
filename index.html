@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: Vollbild-App mit Tab-Leiste unten; Karte randlos, Inhaltsseiten als schmale Lesespalte. */
+/* Layout: Vollbild-App mit Tab-Leiste unten; Karte randlos mit einklappbarem Infofeld; Inhaltsseiten als schmale Lesespalte. */
 :root{
   --bg:#eef0ec; --surface:#ffffff; --surface-2:#f5f6f3; --ink:#1b2220; --muted:#59645f;
   --line:#d6dbd5; --accent:#0e6a6a; --accent-ink:#ffffff; --warn:#9a5200; --me:#2a72d8;
@@ -54,7 +54,6 @@ main{position:relative;overflow:hidden;min-height:0}
 .page-head h1{font-size:30px;font-weight:700;letter-spacing:-.01em}
 .lede{margin:4px 0 0;color:var(--muted)}
 
-/* Tab-Leiste */
 .tabbar{display:grid;grid-template-columns:repeat(4,1fr);background:var(--surface);border-top:1px solid var(--line);
   padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
 .tab{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px 6px;color:var(--muted);text-decoration:none;font-size:12px;font-weight:600;letter-spacing:.02em}
@@ -66,15 +65,19 @@ main{position:relative;overflow:hidden;min-height:0}
 :root[data-theme="dark"] .map{background:#2a2f2d}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .map{background:#2a2f2d}}
 .tiles,.layer,.markers{position:absolute;inset:0;pointer-events:none}
+.geocanvas{position:absolute;left:0;top:0;pointer-events:none}
 .tile{position:absolute;left:0;top:0;max-width:none;opacity:0;transition:opacity .2s;will-change:transform}
 .tile.ok{opacity:1}
 .tile.err{display:none}
 .marker{position:absolute;left:0;top:0;width:0;height:0}
 .marker.me::after{content:"";position:absolute;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:var(--me);border:3px solid #fff;box-shadow:0 0 0 6px rgba(42,114,216,.22)}
-.marker.query::before{content:"";position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:3px solid var(--accent);background:rgba(14,106,106,.14)}
-.marker.query::after{content:"";position:absolute;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:var(--accent)}
+.marker.query::before{content:"";position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px var(--accent)}
+.marker.query::after{content:"";position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--accent);border:1px solid #fff}
 .marker.pulse::after{content:"";position:absolute;width:60px;height:60px;margin:-30px 0 0 -30px;border-radius:50%;border:2px solid var(--accent);animation:pulse .7s ease-out forwards}
 @keyframes pulse{from{transform:scale(.3);opacity:1}to{transform:scale(1.2);opacity:0}}
+.marker.hl{pointer-events:auto}
+.marker.hl > span{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 12px/1 var(--font-ui);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:pointer}
+.marker.hl.sel > span{width:32px;height:32px;margin:-16px 0 0 -16px;box-shadow:0 0 0 3px var(--ink)}
 
 .map-ui{position:absolute;inset:0;pointer-events:none}
 .map-ui > *{pointer-events:auto}
@@ -85,69 +88,114 @@ main{position:relative;overflow:hidden;min-height:0}
 .search:focus-within{outline:2px solid var(--accent);outline-offset:1px}
 .search button{border:0;background:none;width:44px;height:44px;display:grid;place-items:center;color:var(--muted);cursor:pointer;flex:none}
 .search svg{width:20px;height:20px}
-.results{position:absolute;top:calc(env(safe-area-inset-top,0px) + 62px);left:max(12px,env(safe-area-inset-left,0px));right:max(64px,calc(env(safe-area-inset-right,0px) + 64px));max-width:520px;margin:0;padding:4px;list-style:none;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);max-height:50vh;overflow-y:auto;z-index:5}
-.results button{display:block;width:100%;text-align:left;padding:10px 10px;border:0;background:none;border-radius:8px;cursor:pointer;font-size:15px}
+.round{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);display:grid;place-items:center;cursor:pointer;padding:0;flex:none}
+.round svg{width:22px;height:22px}
+.round[aria-expanded="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.results{position:absolute;top:calc(env(safe-area-inset-top,0px) + 62px);left:max(12px,env(safe-area-inset-left,0px));right:max(116px,calc(env(safe-area-inset-right,0px) + 116px));max-width:520px;margin:0;padding:4px;list-style:none;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);max-height:55vh;overflow-y:auto;z-index:6}
+.results button{display:block;width:100%;text-align:left;padding:10px;border:0;background:none;border-radius:8px;cursor:pointer;font-size:15px}
 .results button:hover,.results button:focus-visible{background:var(--surface-2)}
-.results .muted{padding:10px;color:var(--muted);font-size:14px}
-.map-row2{position:absolute;top:calc(env(safe-area-inset-top,0px) + 64px);left:max(12px,env(safe-area-inset-left,0px));right:max(68px,calc(env(safe-area-inset-right,0px) + 68px));display:flex;pointer-events:none}
-.map-row2 > *{pointer-events:auto}
-.zoomhint{position:absolute;top:calc(env(safe-area-inset-top,0px) + 118px);left:50%;transform:translateX(-50%);padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap;color:var(--ink)}
-.crosshair{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;pointer-events:none;opacity:.7}
-.crosshair::before,.crosshair::after{content:"";position:absolute;background:var(--ink)}
-.crosshair::before{left:14px;top:0;width:2px;height:30px}
-.crosshair::after{top:14px;left:0;height:2px;width:30px}
-.examples{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-.examples::-webkit-scrollbar{display:none}
-.examples button{flex:none;display:inline-flex;align-items:center;gap:6px;padding:6px 12px 6px 6px;border-radius:999px;border:1px solid var(--line);background:var(--surface);box-shadow:0 2px 8px rgba(20,32,29,.12);font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap}
-.examples .lbl{padding:6px 4px 6px 8px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);flex:none;align-self:center;background:var(--surface);border-radius:999px;border:1px solid var(--line)}
-.warn-card{border-color:var(--warn)}
+.results .muted{padding:8px 10px;color:var(--muted);font-size:13px}
+.results .grp{padding:8px 10px 2px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.results small{display:block;color:var(--muted);font-size:13px}
+.layers{position:absolute;top:calc(env(safe-area-inset-top,0px) + 62px);right:max(12px,env(safe-area-inset-right,0px));width:min(300px,calc(100% - 24px));background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 14px;z-index:6;display:flex;flex-direction:column;gap:12px;max-height:70vh;overflow-y:auto}
+.layers h3{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 4px}
+.layers fieldset{border:0;margin:0;padding:0}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.opts label{display:flex;align-items:center;justify-content:center;text-align:center;min-height:38px;padding:6px;border-radius:10px;border:1px solid var(--line);font-weight:600;font-size:14px;cursor:pointer}
+.opts input{position:absolute;opacity:0;pointer-events:none}
+.opts label:has(input:checked){background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.opts label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:1px}
+.check{display:flex;align-items:center;gap:10px;font-size:15px;padding:4px 0}
+.check input{width:20px;height:20px;accent-color:var(--accent)}
+.check i{width:22px;height:0;border-top:3px solid;display:inline-block}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.zoom{position:absolute;right:max(12px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 66px);display:flex;flex-direction:column;border-radius:12px;overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow);background:var(--surface)}
+.zoom button{width:44px;height:42px;border:0;background:none;font-size:22px;font-weight:500;cursor:pointer}
+.zoom button + button{border-top:1px solid var(--line)}
+.zoomhint{position:absolute;top:calc(env(safe-area-inset-top,0px) + 66px);left:50%;transform:translateX(-50%);padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap;color:var(--ink)}
+.loadhint{position:absolute;top:calc(env(safe-area-inset-top,0px) + 112px);left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);font-size:13px;font-weight:600;pointer-events:none}
+.attrib{position:absolute;left:max(8px,env(safe-area-inset-left,0px));font-size:10px;line-height:1.3;color:var(--muted);background:color-mix(in srgb,var(--surface) 80%,transparent);padding:2px 6px;border-radius:6px;max-width:70%;pointer-events:auto}
+
+/* Infofeld */
+.sheet{position:absolute;left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));bottom:10px;display:flex;flex-direction:column;gap:8px;max-width:600px;margin:0 auto}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+.panel-head{display:flex;align-items:center;gap:6px;padding:6px 8px 6px 6px;border-bottom:1px solid transparent}
+.panel[data-open="true"] .panel-head{border-bottom-color:var(--line)}
+.ptabs{display:flex;gap:4px;flex:1;min-width:0}
+.ptab{flex:1;min-width:0;border:0;background:none;padding:8px 6px;border-radius:10px;font-weight:600;font-size:14px;color:var(--muted);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ptab[aria-selected="true"]{background:var(--surface-2);color:var(--ink)}
+.ptab .cnt{font-variant-numeric:tabular-nums;font-size:12px;background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:0 6px;margin-left:2px}
+.ptab .cnt:empty{display:none}
+.toggle-btn{width:40px;height:36px;border:0;background:none;border-radius:10px;display:grid;place-items:center;cursor:pointer;color:var(--muted);flex:none}
+.toggle-btn svg{width:22px;height:22px;transition:transform .2s}
+.panel[data-open="true"] .toggle-btn svg{transform:rotate(180deg)}
+.psum{padding:2px 14px 12px;cursor:pointer}
+.psum .t{font-weight:700;font-size:17px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.psum .s{margin:0;font-size:14px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.panel[data-open="true"] .psum{display:none}
+.pbody{display:none;max-height:min(40vh,420px);overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 14px 14px;overscroll-behavior:contain}
+.panel[data-open="true"] .pbody{display:block}
+
+/* Bausteine */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font-weight:600;text-decoration:none;color:var(--ink);cursor:pointer;font-size:15px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.block{width:100%}
+.note{font-size:14px;color:var(--muted);margin:0}
+.banner{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px;box-shadow:var(--shadow)}
+.banner p{margin:0;flex:1;min-width:0;font-size:14px}
+.banner svg{width:22px;height:22px;flex:none;color:var(--accent)}
+.warn-card{border-color:var(--warn);box-shadow:var(--shadow)}
 .warn-card h2{font-size:17px;margin:0 0 4px;color:var(--warn)}
 .warn-card p{margin:0;font-size:14px}
 .help{margin:8px 0 0;padding-left:18px;font-size:14px}
-.seg{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:3px;box-shadow:var(--shadow);flex:1;max-width:300px}
-.seg label{flex:1;text-align:center;padding:7px 6px;border-radius:9px;font-weight:600;font-size:14px;cursor:pointer;color:var(--muted)}
-.seg input{position:absolute;opacity:0;pointer-events:none}
-.seg input:checked + span{color:var(--accent-ink)}
-.seg label:has(input:checked){background:var(--accent);color:var(--accent-ink)}
-.seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:1px}
-.round{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);display:grid;place-items:center;cursor:pointer;padding:0}
-.round svg{width:22px;height:22px}
-.zoom{position:absolute;right:max(12px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 64px);display:flex;flex-direction:column;border-radius:12px;overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow);background:var(--surface)}
-.zoom button{width:44px;height:42px;border:0;background:none;font-size:22px;font-weight:500;cursor:pointer}
-.zoom button + button{border-top:1px solid var(--line)}
-.sheet{position:absolute;left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));bottom:12px;display:flex;flex-direction:column;gap:8px;max-width:560px;margin:0 auto}
-
-/* Karten & Bausteine */
-.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px}
-.sheet .card,.banner{box-shadow:var(--shadow)}
-.eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
-.summary h2{font-size:21px;font-weight:700;margin:4px 0 2px}
-.summary .age{margin:0;color:var(--ink)}
-.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font-weight:600;text-decoration:none;color:var(--ink);cursor:pointer}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-.btn.block{width:100%}
-.foot{margin:10px 0 0;font-size:12px;color:var(--muted)}
-.banner{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
-.banner p{margin:0;flex:1;min-width:0;font-size:14px}
-.banner svg{width:22px;height:22px;flex:none;color:var(--accent)}
 .spin{width:18px;height:18px;border-radius:50%;border:2.5px solid var(--line);border-top-color:var(--accent);animation:spin .8s linear infinite;flex:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loading{display:flex;gap:10px;align-items:center}
-.chips{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap}
+.chips{display:flex;gap:4px;flex-wrap:wrap}
 .chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:2px 8px 2px 4px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line)}
-.sw{width:14px;height:14px;border-radius:4px;flex:none;border:1px solid rgba(0,0,0,.18)}
+.sw{width:14px;height:14px;border-radius:4px;flex:none;border:1px solid rgba(0,0,0,.25);display:inline-block}
 
-.site-head{display:flex;flex-direction:column;gap:2px}
-.coord{font-family:var(--font-mono);font-size:14px;font-variant-numeric:tabular-nums}
-.card h3{font-size:17px;font-weight:700;margin:0 0 10px}
-.kv{display:grid;grid-template-columns:7.5em 1fr;gap:6px 12px;margin:0}
+.info{display:flex;flex-direction:column;gap:14px}
+.info h2{font-size:21px;font-weight:700}
+.info h3{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 4px}
+.info .lead{font-size:17px;margin:2px 0 0}
+.info p{margin:0}
+.info section{display:flex;flex-direction:column;gap:4px}
+.kv{display:grid;grid-template-columns:8em 1fr;gap:4px 12px;margin:0;font-size:15px}
 .kv dt{color:var(--muted)}
 .kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
-.note{font-size:14px;color:var(--muted);margin:0}
+.explain{border-left:3px solid var(--accent);padding:6px 0 6px 12px;display:flex;flex-direction:column;gap:8px;font-size:15px}
+.explain b{font-weight:700}
+.explain a,.src{font-size:13px;font-weight:600}
+.src-type,.pending{font-size:13px;color:var(--muted)}
+.pending{color:var(--warn);font-weight:600}
+.damals{background:var(--surface-2);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px}
+.draft{font-size:12px;color:var(--warn);font-weight:600;margin:0}
+.hl-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.hl-list button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:none;padding:9px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.hl-list .dot{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px;flex:none}
+.hl-list .nm{flex:1;min-width:0}
+.hl-list .nm b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hl-list .nm small{color:var(--muted);font-size:13px}
+.hl-list .d{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px;flex:none}
+.leg-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.leg-list button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:none;padding:7px 6px;border-radius:8px;cursor:pointer;font-size:15px}
+.leg-list button[aria-pressed="true"]{background:var(--surface-2);outline:2px solid var(--accent)}
+.leg-list .sw{width:22px;height:16px}
+.leg-list .nm{flex:1}
+.leg-list small{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.leg-lines{display:flex;flex-direction:column;gap:6px;margin-top:10px;font-size:14px}
+.leg-lines span{display:flex;align-items:center;gap:10px}
+.leg-lines i{width:26px;height:0;border-top:3px solid;display:inline-block}
+.hatch{background:repeating-linear-gradient(45deg,#d9c24a 0 2px,transparent 2px 6px)!important}
+
 details{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px 16px}
 summary{cursor:pointer;font-weight:600}
 pre{font-family:var(--font-mono);font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0 0}
+.coord{font-family:var(--font-mono);font-size:14px;font-variant-numeric:tabular-nums}
 .notes{margin:0;padding-left:18px;font-size:14px}
 .empty{padding:28px 4px;color:var(--muted)}
 
@@ -159,7 +207,7 @@ pre{font-family:var(--font-mono);font-size:12px;white-space:pre-wrap;overflow-wr
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend i{width:16px;height:11px;border-radius:3px;background:var(--muted);display:inline-block}
 .slider-label{font-weight:700;font-size:17px}
-input[type=range]{width:100%;accent-color:var(--accent);margin:4px 0 0;height:32px}
+#slider{margin:4px 0 0;height:32px}
 .ends{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:-4px}
 .relation{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:15px}
 .relation svg{width:20px;height:20px;flex:none;color:var(--accent);margin-top:2px}
@@ -171,18 +219,15 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:4px 0 0;height:32
 .story h4{font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 0 6px}
 .claims{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
 .claims p{margin:0 0 2px}
-.src{font-size:13px;font-weight:600}
-.src-type,.pending{font-size:13px;color:var(--muted)}
-.pending{color:var(--warn);font-weight:600}
-.draft{margin:16px 0 0;font-size:13px;color:var(--warn);font-weight:600}
 
 /* Info */
 .toggle{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .toggle input{width:48px;height:28px;accent-color:var(--accent);flex:none}
 .src-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
 .src-list p{margin:2px 0 0;font-size:14px;color:var(--muted)}
-.card p{margin:0}
-.card p + p{margin-top:8px}
+.card > p{margin:0}
+.card > p + p{margin-top:8px}
+.card h3{font-size:17px;font-weight:700;margin:0 0 10px}
 .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 80px);transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:10px;font-size:14px;font-weight:600;z-index:20}
 
 @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
@@ -193,40 +238,73 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:4px 0 0;height:32
   <main>
     <!-- KARTE -->
     <section id="view-karte" class="view" aria-label="Karte">
-      <div id="map" class="map" aria-label="Geologische Karte. Lange drücken, um einen Ort abzufragen."></div>
-      <div class="crosshair" aria-hidden="true"></div>
+      <div id="map" class="map" aria-label="Geologische Karte. Tippen zeigt, was dort im Untergrund liegt."></div>
       <div class="map-ui">
         <div class="map-top">
           <form class="search" id="search-form" role="search" autocomplete="off">
-            <input id="search" type="search" placeholder="Ort suchen oder Koordinaten" enterkeyhint="search" aria-label="Ort suchen oder Koordinaten eingeben">
+            <input id="search" type="search" placeholder="Ort suchen oder Beispiel wählen" enterkeyhint="search" aria-label="Ort suchen oder Koordinaten eingeben">
             <button type="submit" aria-label="Suchen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/></svg></button>
           </form>
+          <button class="round" id="layers-btn" type="button" aria-label="Kartenebenen" aria-expanded="false" aria-controls="layers">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>
+          </button>
           <button class="round" id="locate" type="button" aria-label="Zu meinem Standort und aktualisieren">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
           </button>
         </div>
         <ul class="results" id="results" hidden></ul>
-        <button class="zoomhint" id="zoomhint" type="button" hidden>Hineinzoomen, um die Geologie zu sehen</button>
-        <div class="map-row2">
-          <div class="seg" role="radiogroup" aria-label="Kartenebene">
-            <label><input type="radio" name="mode" id="mode-age" value="age" checked><span>Alter</span></label>
-            <label><input type="radio" name="mode" id="mode-lith" value="lith"><span>Gestein</span></label>
-            <label><input type="radio" name="mode" id="mode-off" value="off"><span>Aus</span></label>
+        <div class="layers" id="layers" hidden>
+          <fieldset><h3>Grundkarte</h3>
+            <div class="opts">
+              <label><input type="radio" name="base" value="osm" checked>Karte</label>
+              <label><input type="radio" name="base" value="topo">Topo</label>
+              <label><input type="radio" name="base" value="bkg">Topo DE</label>
+              <label><input type="radio" name="base" value="sat">Satellit</label>
+            </div>
+          </fieldset>
+          <fieldset><h3>Geologie</h3>
+            <div class="opts">
+              <label><input type="radio" name="mode" value="age" checked>Erdzeitalter</label>
+              <label><input type="radio" name="mode" value="lith">Gestein</label>
+              <label style="grid-column:span 2"><input type="radio" name="mode" value="off">Aus</label>
+            </div>
+          </fieldset>
+          <div><h3><label for="opacity">Deckkraft Geologie</label></h3><input type="range" id="opacity" min="25" max="100" step="5" value="65"></div>
+          <div>
+            <label class="check"><input type="checkbox" id="show-faults" checked><i style="border-color:#c0392b"></i>Störungen</label>
+            <label class="check"><input type="checkbox" id="show-ice" checked><i style="border-color:#1f6fd1;border-top-style:dashed"></i>Eisrandlagen</label>
+            <label class="check"><input type="checkbox" id="show-hl" checked><span class="sw" style="border-radius:50%;background:#0e6a6a"></span>Highlights</label>
           </div>
+          <p class="note">Die Geologie erscheint ab Zoomstufe 10. Karte: GÜK250 1:250.000 der BGR.</p>
         </div>
         <div class="zoom">
           <button type="button" id="zoom-in" aria-label="Hineinzoomen">+</button>
           <button type="button" id="zoom-out" aria-label="Herauszoomen">−</button>
         </div>
-        <div class="sheet">
+        <button class="zoomhint" id="zoomhint" type="button" hidden>Hineinzoomen, um die Geologie zu sehen</button>
+        <div class="loadhint" id="loadhint" hidden><span class="spin" aria-hidden="true"></span><span>Lade Geologie …</span></div>
+        <div class="sheet" id="sheet">
           <div class="card warn-card" id="netwarn" hidden></div>
           <div class="banner" id="banner" hidden>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="2"/><path d="M9 21l2-6 3 3v3M7 12l3-4 4 2 3 3M10 8l-2 7"/></svg>
             <p id="banner-text"></p>
             <button class="btn primary" id="banner-btn" type="button">Aktualisieren</button>
           </div>
-          <div class="examples" id="examples" aria-label="Beispielorte"></div>
-          <div class="card summary" id="summary"></div>
+          <section class="panel" id="panel" data-open="false" aria-label="Informationen">
+            <div class="panel-head">
+              <div class="ptabs" role="tablist">
+                <button class="ptab" role="tab" data-tab="hier" aria-selected="true">Hier</button>
+                <button class="ptab" role="tab" data-tab="hl" aria-selected="false">Orte <span class="cnt" id="hl-count"></span></button>
+                <button class="ptab" role="tab" data-tab="leg" aria-selected="false">Legende</button>
+              </div>
+              <button class="toggle-btn" id="panel-toggle" type="button" aria-label="Infofeld auf- oder zuklappen" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+              </button>
+            </div>
+            <div class="psum" id="psum"></div>
+            <div class="pbody" id="pbody"></div>
+          </section>
+          <div class="attrib" id="attrib" style="position:static;max-width:100%"></div>
         </div>
       </div>
     </section>
@@ -270,6 +348,11 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:4px 0 0;height:32
       <div class="page-inner">
         <header class="page-head"><h1>Info</h1></header>
         <div class="card">
+          <h3>So funktioniert es</h3>
+          <p>Tipp auf die Karte: Die App zeigt, welches Gestein dort an der Oberfläche liegt, wie alt es ist, wie es entstanden ist und was damals hier los war. Unter „Highlights“ findest du Höhlen, Aufschlüsse, Steinbrüche, Findlinge und andere geologische Orte in der Umgebung.</p>
+          <p>Über das Ebenen-Symbol wählst du die Grundkarte (Karte, Topo, Satellit) und ob die Geologie nach Erdzeitalter oder nach Gestein eingefärbt wird.</p>
+        </div>
+        <div class="card">
           <h3>Aktualisierung</h3>
           <label class="toggle" for="auto">
             <span>Automatisch neu abfragen, sobald du dich 250 m bewegt hast</span>
@@ -280,23 +363,26 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:4px 0 0;height:32
         </div>
         <div class="card">
           <h3>Datenschutz</h3>
-          <p>Für jede Abfrage sendet die App den Punkt an die Kartendienste der BGR, auf drei Nachkommastellen gerundet (ca. 110 m). Die Grundkarte lädt Kacheln von OpenStreetMap. Die letzte Abfrage bleibt nur in diesem Browser gespeichert.</p>
+          <p>Für Abfragen sendet die App den Punkt an die Kartendienste der BGR, auf drei Nachkommastellen gerundet (ca. 110 m). Für Highlights fragt sie den Kartenausschnitt bei OpenStreetMap (Overpass) ab. Kartenkacheln kommen von den unten genannten Diensten. Die letzte Abfrage bleibt nur in diesem Browser gespeichert.</p>
         </div>
         <div class="card">
           <h3>Datenquellen</h3>
           <ul class="src-list">
-            <li><a href="https://www.deutsche-rohstoffagentur.de/EN/Themen/Sammlungen-Grundlagen/GG_geol_Info/Karten/Deutschland/GUEK250/guek250_node_en.html" target="_blank" rel="noopener">Geologische Übersichtskarte 1:250.000 (GÜK250, INSPIRE)</a><p>© BGR, Hannover. Behördendaten, genutzt nach den Nutzungsbestimmungen für Geodaten des Bundes. Die App übersetzt die Attribute und stellt sie verändert dar.</p></li>
+            <li><a href="https://services.bgr.de/arcgis/rest/services/geologie/guek250/MapServer" target="_blank" rel="noopener">Geologische Übersichtskarte 1:250.000 (GÜK250)</a><p>© BGR, Hannover (2026). Behördendaten, genutzt nach den Nutzungsbestimmungen für Geodaten des Bundes. Grenzen vereinfacht (ca. 50 m), Farben von dieser App.</p></li>
             <li><a href="https://services.bgr.de/arcgis/rest/services/boden/buek200/MapServer" target="_blank" rel="noopener">Bodenübersichtskarte 1:200.000 (BÜK200)</a><p>© BGR, Hannover, mit den Staatlichen Geologischen Diensten. Behördendaten.</p></li>
             <li><a href="https://sg.geodatenzentrum.de/web_public/gdz/lizenz/geonutzv.pdf" target="_blank" rel="noopener">Nutzungsbestimmungen für Geodaten des Bundes</a><p>Lizenztext, Behördendokument.</p></li>
-            <li><a href="https://stratigraphy.org/ICSchart/ChronostratChart2024-12.pdf" target="_blank" rel="noopener">Internationale Chronostratigraphische Tabelle v2024/12</a><p>ICS, Fachorganisation. Grenzalter in der App gerundet; die Werte sind noch nicht von Hand gegen das PDF geprüft.</p></li>
-            <li><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">Grundkarte © OpenStreetMap-Mitwirkende</a><p>Offene Geodaten, ODbL.</p></li>
+            <li><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a><p>Grundkarte, Highlights (Overpass) und Ortssuche (Nominatim): © OpenStreetMap-Mitwirkende, ODbL.</p></li>
+            <li><a href="https://opentopomap.org/about" target="_blank" rel="noopener">OpenTopoMap</a><p>Topografische Karte: © OpenStreetMap-Mitwirkende, SRTM; Darstellung © OpenTopoMap (CC-BY-SA).</p></li>
+            <li><a href="https://gdz.bkg.bund.de/index.php/default/webdienste/topplus-produkte/wmts-topplusopen-wmts-topplus-open.html" target="_blank" rel="noopener">TopPlusOpen (Topo DE)</a><p>© Bundesamt für Kartographie und Geodäsie (2026), Datenlizenz Deutschland Namensnennung 2.0. Behördendaten.</p></li>
+            <li><a href="https://s2maps.eu" target="_blank" rel="noopener">Sentinel-2 cloudless 2024</a><p>Satellitenbild von EOX IT Services GmbH, enthält modifizierte Copernicus-Sentinel-Daten 2024; CC BY-NC-SA 4.0 (nicht kommerziell).</p></li>
+            <li><a href="https://stratigraphy.org/ICSchart/ChronostratChart2024-12.pdf" target="_blank" rel="noopener">Internationale Chronostratigraphische Tabelle v2024/12</a><p>ICS, Fachorganisation. Grenzalter gerundet; noch nicht von Hand gegen das PDF geprüft.</p></li>
           </ul>
         </div>
         <div class="card">
           <h3>Grenzen</h3>
-          <p>Die Karten haben Maßstab 1:250.000 bzw. 1:200.000. Sie beschreiben die Oberfläche, meist bis etwa 2 m Tiefe, und sagen nichts darüber, was tiefer liegt.</p>
-          <p>Die Zeitreise-Säule ist eine Zeitachse, kein Bohrprofil. Sie zeigt, aus welcher Zeit das kartierte Gestein stammt.</p>
-          <p>Die Texte der Zeitreise sind Entwürfe. Aussagen ohne Quelle tragen den Hinweis „Beleg ausstehend“; fachlich geprüft ist noch nichts.</p>
+          <p>Die Karten haben Maßstab 1:250.000 bzw. 1:200.000. Sie beschreiben die Oberfläche, meist bis etwa 2 m Tiefe, und sagen nichts darüber, was tiefer liegt. Grenzen sind auf etwa 50 m vereinfacht.</p>
+          <p>Die Kurzerklärungen und die Zeitreise-Texte sind Entwürfe. Aussagen ohne Quelle tragen den Hinweis „Beleg ausstehend“; fachlich geprüft ist noch nichts.</p>
+          <p>Steinbrüche, Bergwerke und viele Höhlen dürfen nicht betreten werden. Sammeln ist an vielen Orten verboten.</p>
           <p>Private, nicht kommerzielle Nutzung.</p>
         </div>
         <div class="card">
@@ -330,110 +416,41 @@ const store = {
   del(k) { try { localStorage.removeItem(k); } catch (e) { /* egal */ } }
 };
 const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 function toast(text) {
-  const t = document.createElement('div');
-  t.className = 'toast'; t.textContent = text;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2200);
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = text;
+  document.body.appendChild(t); setTimeout(() => t.remove(), 2200);
 }
+const clean = s => {
+  if (s === null || s === undefined) return null;
+  const t = String(s).replace(/[{}]/g, '').replace(/\s+/g, ' ').trim();
+  return (!t || /^(null|<null>)$/i.test(t)) ? null : t;
+};
+const lower = a => { const o = {}; Object.keys(a || {}).forEach(k => { o[k.toLowerCase()] = a[k]; }); return o; };
+const errMsg = e => (e && e.message) ? e.message : 'unbekannter Fehler';
+const round3 = v => Math.round(v * 1000) / 1000;
+const key = s => String(s).toLowerCase().replace(/ß/g, 'ss').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, '');
 
-/* ================= BGR-Dienste ================= */
-const BGR = {
-  guek: 'https://services.bgr.de/arcgis/rest/services/inspire_ge/guek250/MapServer',
-  buek: 'https://services.bgr.de/arcgis/rest/services/boden/buek200/MapServer',
-  base: 6,      // GE.GeologicUnit.Baselayer.Lithology
-  overlay: 5,   // GE.GeologicUnit.OverlayLayer.Lithology
-  fault: 3,     // GE.GeologicFault
-  ageBase: 9,   // GE.GeologicUnit.Baselayer.AgeOfRocks (Farben nach Alter)
-  faultRadius: 2000
-};
+/* ================= Dienste ================= */
+const G250 = 'https://services.bgr.de/arcgis/rest/services/geologie/guek250/MapServer';   // deutschsprachige GÜK250 mit Geometrien
+const BUEK = 'https://services.bgr.de/arcgis/rest/services/boden/buek200/MapServer';
+const LY = { tekt: 0, eis: 2, stratOver: 4, stratBase: 5, petroOver: 7, petroBase: 8, genOver: 10, genBase: 11 };
+const STRAT_F = 'OBJECTID,einheit_id,alter_anfang,alter_ende,alter_gesamt,leg_alter_gesamt_text,lithostrat_regiostrat_1,lithostrat_regiostrat_2,lokalitaet_gebiet,maechtigkeit,s_zusatz';
+const PETRO_F = 'OBJECTID,klartext,klartext_kurz';
+const GEN_F = 'OBJECTID,petrogen_text,bprozess_text,braum_text,bmilieu_text';
+const FAULT_RADIUS = 2000;
+const VEC_MIN_ZOOM = 10;
+const CELL = 0.2;
 
-/* ================= Übersetzung der INSPIRE-Codes ================= */
-const Tr = {
-  last(raw) { const s = String(raw).trim(); const i = Math.max(s.lastIndexOf('/'), s.lastIndexOf('#')); return i >= 0 ? s.slice(i + 1) : s; },
-  key(s) { return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z]/g, ''); },
-  split(s) { return String(s).replace(/[_-]+/g, ' ').replace(/([a-zäöüß])([A-ZÄÖÜ])/g, '$1 $2').toLowerCase().trim(); },
-  label(raw, table) {
-    const l = Tr.last(raw); const hit = table[Tr.key(l)];
-    if (hit) return hit;
-    const w = Tr.split(l);
-    return w ? w[0].toUpperCase() + w.slice(1) : String(raw);
-  }
+/* Grundkarten */
+const BASEMAPS = {
+  osm: { url: (z, x, y) => 'https://tile.openstreetmap.org/' + z + '/' + x + '/' + y + '.png', max: 19, attr: 'Grundkarte © OpenStreetMap-Mitwirkende' },
+  topo: { url: (z, x, y) => 'https://tile.opentopomap.org/' + z + '/' + x + '/' + y + '.png', max: 17, attr: 'Karte © OpenStreetMap-Mitwirkende, SRTM · Darstellung © OpenTopoMap (CC-BY-SA)' },
+  bkg: { url: (z, x, y) => 'https://sgx.geodatenzentrum.de/wmts_topplus_open/tile/1.0.0/web/default/WEBMERCATOR/' + z + '/' + y + '/' + x + '.png', max: 18, attr: 'TopPlusOpen © BKG (2026), dl-de/by-2-0' },
+  sat: { url: (z, x, y) => 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/' + z + '/' + y + '/' + x + '.jpg', max: 15, attr: 'Sentinel-2 cloudless 2024 © EOX IT Services GmbH (CC BY-NC-SA 4.0), enthält modifizierte Copernicus-Sentinel-Daten' }
 };
-/* Vollständiges Vokabular der GÜK250 (INSPIRE), am 09.11.2026 per returnDistinctValues aus den Ebenen 5 und 6 gelesen.
-   Die BGR liefert englische Klartexte, mehrere Begriffe durch Komma getrennt. */
-const MATERIALS = {
-  alkalifeldsparrhyolite: 'Alkalifeldspat-Rhyolith', amphibolite: 'Amphibolit', andlapillituff: 'Lapillituff', andesite: 'Andesit',
-  anthropogenicunconsolidatedmaterial: 'Künstliche Aufschüttung', ashandlapilli: 'Asche und Lapilli', ashbreccia: 'Aschenbrekzie',
-  ashtuff: 'Aschentuff', basalt: 'Basalt', basanite: 'Basanit', bauxite: 'Bauxit', biogenicsilicasedimentaryrock: 'Biogenes Kieselgestein',
-  bomb: 'Vulkanische Bomben', bouldergravelsizesediment: 'Blöcke', breccia: 'Brekzie', buildingrubble: 'Bauschutt',
-  calcareouscarbonatesediment: 'Kalksediment', carbonaterichmud: 'Kalkreicher Schlamm', carbonaterichmudstone: 'Mergelstein',
-  carbonatesedimentaryrock: 'Karbonatgestein', carbonatite: 'Karbonatit', cataclasiteseries: 'Kataklasit',
-  chloriteactinoliteepidotemetamorphicrock: 'Grünschiefer', clasticsediment: 'Klastisches Sediment', clay: 'Ton', claystone: 'Tonstein',
-  coal: 'Steinkohle', cobblegravelsizesediment: 'Steine (Grobgeröll)', compoundmaterial: 'Gemenge', conglomerate: 'Konglomerat',
-  dacite: 'Dazit', diamicton: 'Diamikt (z. B. Geschiebemergel)', diorite: 'Diorit', dolomite: 'Dolomit', eclogite: 'Eklogit',
-  evaporite: 'Salzgestein (Evaporit)', exoticevaporite: 'Seltenes Salzgestein', foidsyenitoid: 'Foidsyenitoid', foidolite: 'Foidolith',
-  gabbro: 'Gabbro', genericmudstone: 'Ton- und Schluffstein', glassyigneousrock: 'Vulkanisches Glas', gneiss: 'Gneis', granite: 'Granit',
-  granitoid: 'Granitoid', granodiorite: 'Granodiorit', granulite: 'Granulit', gravel: 'Kies', gypsumoranhydrite: 'Gips oder Anhydrit',
-  hornfels: 'Hornfels', igneousrock: 'Magmatisches Gestein', impactgeneratedmaterial: 'Impaktgestein',
-  impurecalcareouscarbonatesediment: 'Unreines Kalksediment', impurelimestone: 'Mergeliger Kalkstein',
-  ironrichsedimentaryrock: 'Eisenreiches Sedimentgestein', lapillistone: 'Lapillistein', latite: 'Latit', lignite: 'Braunkohle',
-  limestone: 'Kalkstein', marble: 'Marmor', metamorphicrock: 'Metamorphes Gestein', metasomaticrock: 'Metasomatisches Gestein',
-  micaschist: 'Glimmerschiefer', migmatite: 'Migmatit', monzodiorite: 'Monzodiorit', monzogranite: 'Monzogranit', monzonite: 'Monzonit',
-  mudstone: 'Ton- und Schluffstein', myloniticrock: 'Mylonit', nonclasticsiliceoussedimentaryrock: 'Kieselgestein',
-  orblocktephra: 'Vulkanische Blöcke', organicrichsediment: 'Organisches Sediment (Mudde)', peat: 'Torf',
-  pebblegravelsizesediment: 'Kies', pegmatite: 'Pegmatit', peridotite: 'Peridotit', phonolite: 'Phonolith', phosphorite: 'Phosphorit',
-  phyllite: 'Phyllit', phyllonite: 'Phyllonit', purecalcareouscarbonatesediment: 'Reines Kalksediment',
-  purecarbonatesedimentaryrock: 'Reiner Kalk- oder Dolomitstein', pyroclasticrock: 'Pyroklastisches Gestein', pyroxenite: 'Pyroxenit',
-  quartzite: 'Quarzit', rhyolite: 'Rhyolith', rhyolitoid: 'Rhyolithoid', rock: 'Gestein', rocksalt: 'Steinsalz', sand: 'Sand',
-  sandstone: 'Sandstein', sediment: 'Sediment', sedimentaryrock: 'Sedimentgestein', serpentinite: 'Serpentinit',
-  silicatemud: 'Silikatischer Schlamm', silt: 'Schluff', siltstone: 'Schluffstein', skarn: 'Skarn', slag: 'Schlacke', slate: 'Tonschiefer',
-  syenite: 'Syenit', syenitoid: 'Syenitoid', syenogranite: 'Syenogranit', tephra: 'Tephra (vulkanischer Auswurf)', tephrite: 'Tephrit',
-  tonalite: 'Tonalit', trachyte: 'Trachyt', tuffite: 'Tuffit', wacke: 'Grauwacke', waste: 'Haldenmaterial',
-  sandsizesediment: 'Sand', gravelsizesediment: 'Kies', mudsizesediment: 'Ton und Schluff', loess: 'Löss', tuff: 'Tuff'
-};
-const PROCESSES = {
-  bolideimpact: 'Meteoriteneinschlag', chemicalprecipitation: 'Chemische Ausfällung', contactmetamorphism: 'Kontaktmetamorphose',
-  cryoturbation: 'Frostdurchmischung (Kryoturbation)', deformation: 'Verformung', deposition: 'Ablagerung',
-  depositionbyorfrommovingice: 'Ablagerung durch Gletschereis', depositionbywater: 'Ablagerung durch Wasser',
-  depositionfromair: 'Ablagerung durch Wind', depositionfromwater: 'Ablagerung durch Wasser', diageneticprocess: 'Verfestigung (Diagenese)',
-  dissolution: 'Lösung (Verkarstung)', effusiveeruption: 'Lavaerguss', eruption: 'Vulkanausbruch', fracturing: 'Zerbrechen',
-  humanactivity: 'Menschliche Tätigkeit', intrusion: 'Intrusion (Magma erstarrt im Untergrund)', magmaticprocess: 'Magmatismus',
-  masswastingdeposition: 'Massenbewegung (Rutschung, Hangschutt)', mechanicaldeposition: 'Mechanische Ablagerung',
-  melting: 'Aufschmelzung', metamorphicprocess: 'Metamorphose', organicaccumulation: 'Anreicherung organischen Materials',
-  partialmelting: 'Teilweise Aufschmelzung', pedogen: 'Bodenbildung', pyroclasticeruption: 'Explosiver Vulkanausbruch',
-  sedimentaryprocess: 'Sedimentation', turbiditycurrentdeposition: 'Ablagerung durch Trübeströme', weathering: 'Verwitterung'
-};
-const ENVIRONMENTS = {
-  basinbogsetting: 'Kesselmoor', biologicalreefsetting: 'Riff', blanketbog: 'Deckenmoor', bogsetting: 'Moor',
-  coastaldunefieldsetting: 'Küstendünen', crustalsetting: 'Erdkruste (Tiefe)', deltaicsystemsetting: 'Flussdelta',
-  dunefieldsetting: 'Dünenfeld', earthsurfacesetting: 'Erdoberfläche', earthsurfacesettinng: 'Erdoberfläche', estuarysetting: 'Flussmündung (Ästuar)',
-  floodplainsetting: 'Flussaue', foreshore: 'Vorstrand', glacialoutwashplainsetting: 'Sander (Schmelzwasserebene)',
-  glacierrelatedsetting: 'Gletscherumfeld', glacierterminussetting: 'Gletscherrand', glaciofluvialsetting: 'Schmelzwasserrinne',
-  glaciofluviualsetting: 'Schmelzwasserrinne', glaciolacustrinesetting: 'Eisstausee', hillslopesetting: 'Hang',
-  hypabyssalsetting: 'Subvulkanisch (knapp unter der Oberfläche)', intertidalsetting: 'Watt (Gezeitenzone)', lacustrinesetting: 'See',
-  lagoonalsetting: 'Lagune', marinesetting: 'Meer', nereticsetting: 'Flachmeer (Schelf)', neriticsetting: 'Flachmeer (Schelf)',
-  neritricsetting: 'Flachmeer (Schelf)',
-  playasetting: 'Salzsee (Playa)', polarclimaticsetting: 'Kaltklima', proglacialsetting: 'Gletschervorfeld',
-  regionalmetamorphicsetting: 'Gebirgsbildung (Regionalmetamorphose)', riverplainsetting: 'Flussebene',
-  riverplainsystemsetting: 'Flussebene', saltpan: 'Salzpfanne', shorelinesetting: 'Küste', springsetting: 'Quelle',
-  subglacialsetting: 'Unter dem Gletscher', subglazialsetting: 'Unter dem Gletscher', terrestrialsetting: 'Festland',
-  wetlandsetting: 'Feuchtgebiet'
-};
-/* Liste übersetzen: Kommas trennen, Doppelte (z. B. "gravel" und "pebble gravel size sediment") zusammenfassen. */
-function listLabel(raw, table) {
-  const out = [];
-  (Array.isArray(raw) ? raw : String(raw || '').split(/[;,|]/)).map(s => String(s).trim()).filter(Boolean).forEach(t => {
-    const l = Tr.label(t, table);
-    if (out.indexOf(l) < 0) out.push(l);
-  });
-  return out;
-}
 
 /* ================= Erdzeitalter ================= */
-/* Grenzalter in Mio. Jahren laut ICS-Tabelle v2024/12 (aus Textextraktion, von Hand noch nicht gegen das PDF geprüft).
-   Farben: angenäherte ICS-Standardfarben. Reihenfolge: jung nach alt. */
+/* Grenzalter in Mio. Jahren laut ICS-Tabelle v2024/12 (aus Textextraktion, noch nicht von Hand gegen das PDF geprüft). Jung nach alt. */
 const PERIODS = [
   { id: 'quartaer', name: 'Quartär', start: 2.58, end: 0, color: '#F9F97F' },
   { id: 'neogen', name: 'Neogen', start: 23.04, end: 2.58, color: '#FFE619' },
@@ -452,12 +469,9 @@ const PERIODS = [
 const AGE = (() => {
   const t = {};
   const add = (keys, name, start, end, coarse) => keys.forEach(k => { t[k] = { name, start, end, coarse: coarse || null }; });
-  // Stufen und Serien: Zeitraum der übergeordneten Periode, ausdrücklich als grob gekennzeichnet.
-  const stage = (parentId, list) => {
-    const p = PERIODS.find(q => q.id === parentId);
-    list.forEach(e => add(e[0], e[1], p.start, p.end, p.name));
-  };
   const sys = (id, keys) => { const p = PERIODS.find(q => q.id === id); add(keys, p.name, p.start, p.end); };
+  // Stufen: Zeitraum der übergeordneten Periode, als grob gekennzeichnet; deutscher Name wird automatisch auch Schlüssel.
+  const stage = (parentId, list) => { const p = PERIODS.find(q => q.id === parentId); list.forEach(e => add(e[0].concat([key(e[1])]), e[1], p.start, p.end, p.name)); };
   sys('quartaer', ['quaternary', 'quartar']); sys('neogen', ['neogene', 'neogen']); sys('paleogen', ['paleogene', 'palaogen']);
   sys('kreide', ['cretaceous', 'kreide']); sys('jura', ['jurassic', 'jura']); sys('trias', ['triassic', 'trias']);
   sys('perm', ['permian', 'perm']); sys('karbon', ['carboniferous', 'karbon']); sys('devon', ['devonian', 'devon']);
@@ -480,14 +494,13 @@ const AGE = (() => {
   add(['tertiary', 'tertiar'], 'Tertiär', 66.0, 2.58);
   add(['mesozoic', 'mesozoikum'], 'Mesozoikum', 251.9, 66.0);
   add(['paleozoic', 'palaozoikum'], 'Paläozoikum', 538.8, 251.9);
-  // Pleistozäne Stufen und norddeutsche Kalt- und Warmzeiten (wie die GÜK250 sie verwendet)
-  [[['gelasian'], 'Gelasium'], [['calabrian'], 'Calabrium'], [['ionian', 'ioanian'], 'Ionium'], [['bavelian'], 'Bavel-Komplex'],
-   [['cromerian'], 'Cromer-Komplex'], [['elsterian'], 'Elster-Kaltzeit'], [['holsteinian'], 'Holstein-Warmzeit'],
-   [['saalian'], 'Saale-Komplex'], [['eemian'], 'Eem-Warmzeit'], [['weichselian'], 'Weichsel-Kaltzeit']]
-    .forEach(e => add(e[0], e[1], 2.58, 0.0117, 'Pleistozän'));
+  [[['gelasian'], 'Gelasium'], [['calabrian'], 'Calabrium'], [['ionian', 'ioanian'], 'Ionium'], [['tarantian'], 'Tarantium']]
+    .forEach(e => add(e[0].concat([key(e[1])]), e[1], 2.58, 0.0117, 'Pleistozän'));
+  [[['greenlandian'], 'Grönlandium'], [['northgrippian'], 'Northgrippium'], [['meghalayan'], 'Meghalayium']]
+    .forEach(e => add(e[0].concat([key(e[1])]), e[1], 0.0117, 0, 'Holozän'));
   stage('neogen', [[['aquitanian'], 'Aquitanium'], [['burdigalian'], 'Burdigalium'], [['langhian'], 'Langhium'], [['serravallian'], 'Serravallium'],
     [['tortonian'], 'Tortonium'], [['messinian'], 'Messinium'], [['zanclean'], 'Zancleum'], [['piacenzian'], 'Piacenzium']]);
-  stage('paleogen', [[['danian'], 'Danium'], [['selandian'], 'Selandium'], [['thanetian'], 'Thanetium'], [['ypresian'], 'Ypresium'],
+  stage('paleogen', [[['danian'], 'Danium'], [['selandian', 'seelandium'], 'Selandium'], [['thanetian'], 'Thanetium'], [['ypresian'], 'Ypresium'],
     [['lutetian'], 'Lutetium'], [['bartonian'], 'Bartonium'], [['priabonian'], 'Priabonium'], [['rupelian'], 'Rupelium'], [['chattian'], 'Chattium']]);
   stage('kreide', [[['berriasian'], 'Berriasium'], [['valanginian'], 'Valanginium'], [['hauterivian'], 'Hauterivium'], [['barremian'], 'Barremium'],
     [['aptian'], 'Aptium'], [['albian'], 'Albium'], [['cenomanian'], 'Cenomanium'], [['turonian'], 'Turonium'], [['coniacian'], 'Coniacium'],
@@ -495,57 +508,69 @@ const AGE = (() => {
   stage('jura', [[['hettangian'], 'Hettangium'], [['sinemurian'], 'Sinemurium'], [['pliensbachian'], 'Pliensbachium'], [['toarcian'], 'Toarcium'],
     [['aalenian'], 'Aalenium'], [['bajocian'], 'Bajocium'], [['bathonian'], 'Bathonium'], [['callovian'], 'Callovium'], [['oxfordian'], 'Oxfordium'],
     [['kimmeridgian'], 'Kimmeridgium'], [['tithonian'], 'Tithonium']]);
-  stage('trias', [[['induan'], 'Induum'], [['olenekian'], 'Olenekium'], [['anisian'], 'Anisium'], [['ladinian'], 'Ladinium'],
+  stage('trias', [[['induan', 'indusium'], 'Induum'], [['olenekian'], 'Olenekium'], [['anisian'], 'Anisium'], [['ladinian'], 'Ladinium'],
     [['carnian'], 'Karnium'], [['norian'], 'Norium'], [['rhaetian'], 'Rhätium']]);
   stage('perm', [[['asselian'], 'Asselium'], [['sakmarian'], 'Sakmarium'], [['artinskian'], 'Artinskium'], [['kungurian'], 'Kungurium'],
     [['roadian'], 'Roadium'], [['cisuralian'], 'Cisuralium'], [['guadalupian'], 'Guadalupium'], [['lopingian'], 'Lopingium']]);
-  stage('karbon', [[['tournaisian'], 'Tournaisium'], [['visean'], 'Viséum'], [['serpukhovian'], 'Serpukhovium'], [['bashkirian'], 'Baschkirium'],
+  stage('karbon', [[['tournaisian'], 'Tournaisium'], [['visean'], 'Viséum'], [['serpukhovian'], 'Serpukhovium'], [['bashkirian', 'bashkirium'], 'Baschkirium'],
     [['moscovian'], 'Moskovium'], [['kasimovian'], 'Kasimovium'], [['gzhelian'], 'Gzhelium'],
-    [['mississippian'], 'Mississippium (Unterkarbon)'], [['pennsylvanian'], 'Pennsylvanium (Oberkarbon)']]);
+    [['mississippian'], 'Mississippium'], [['pennsylvanian'], 'Pennsylvanium']]);
   stage('devon', [[['lochkovian'], 'Lochkovium'], [['pragian'], 'Pragium'], [['emsian'], 'Emsium'], [['eifelian'], 'Eifelium'],
     [['givetian'], 'Givetium'], [['frasnian'], 'Frasnium'], [['famennian'], 'Famennium']]);
-  stage('ordovizium', [[['tremadocian', 'tremadocium'], 'Tremadocium'], [['floian'], 'Floium'], [['dapingian'], 'Dapingium'],
-    [['darriwilian'], 'Darriwilium'], [['sandbian'], 'Sandbium'], [['katian'], 'Katium'], [['hirnantian'], 'Hirnantium']]);
-  stage('kambrium', [[['fortunian'], 'Fortunium'], [['terreneuvian'], 'Terreneuvium'], [['cambrianseries'], 'Kambrium, Serie 2 oder 3'],
+  stage('ordovizium', [[['tremadocian'], 'Tremadocium'], [['floian'], 'Floium'], [['dapingian'], 'Dapingium'],
+    [['darriwilian', 'dariwillium'], 'Darriwilium'], [['sandbian'], 'Sandbium'], [['katian'], 'Katium'], [['hirnantian'], 'Hirnantium']]);
+  // Regionale Gliederung Mitteleuropas (Germanische Trias, Perm, Jura) und deutsche Kurzformen
+  [['buntsandstein'], ['muschelkalk'], ['keuper'], ['lettenkeuper'], ['gipskeuper'], ['schilfsandstein'], ['stubensandstein'], ['rot'], ['wellenkalk']]
+    .forEach(e => add(e, 'Trias', 251.9, 201.4, 'Trias'));
+  [['zechstein'], ['rotliegend'], ['rotliegendes'], ['kupferschiefer']].forEach(e => add(e, 'Perm', 298.9, 251.9, 'Perm'));
+  [['lias'], ['dogger'], ['malm'], ['schwarzjura'], ['braunjura'], ['weissjura']].forEach(e => add(e, 'Jura', 201.4, 143.1, 'Jura'));
+  [['vise'], ['namur'], ['westfal'], ['stefan'], ['dinant'], ['silesium'], ['kulm']].forEach(e => add(e, 'Karbon', 358.9, 298.9, 'Karbon'));
+  [['wealden'], ['emscher'], ['neokom']].forEach(e => add(e, 'Kreide', 143.1, 66.0, 'Kreide'));
+  stage('kambrium', [[['fortunian'], 'Fortunium'], [['terreneuvian'], 'Terreneuvium'], [['cambrianseries', 'serie'], 'Serie 2 oder 3'],
     [['furongian'], 'Furongium']]);
   return t;
 })();
+const AGE_KEYS_BY_LEN = Object.keys(AGE).filter(k => k.length >= 5).sort((a, b) => b.length - a.length);
 const PREFIXES = [['upper', 'Ober'], ['late', 'Ober'], ['middle', 'Mittel'], ['lower', 'Unter'], ['early', 'Unter'],
   ['ober', 'Ober'], ['mittel', 'Mittel'], ['unter', 'Unter'], ['spat', 'Ober'], ['fruh', 'Unter']];
+/* Regionale Gliederung des Quartärs (Kalt- und Warmzeiten, Stadien), wie sie die GÜK250 verwendet */
+const QUAT_WORDS = ['weichsel', 'saale', 'elster', 'wurm', 'riss', 'mindel', 'gunz', 'donau', 'biber', 'tegelen', 'eburon', 'menap', 'cromer',
+  'bavel', 'holstein', 'eem', 'warthe', 'drenthe', 'pommersch', 'brandenburg', 'mecklenburg', 'allerod', 'voigtstedt', 'glazial', 'interstadial'];
+const HOLO_WORDS = ['gronlandium', 'northgrippium', 'meghalayium', 'holozan'];
 
 function parseAge(raw) {
-  if (!raw) return null;
-  const last = Tr.last(raw);
-  let k = Tr.key(last);
+  const label = clean(raw);
+  if (!label) return null;
+  let k = key(label);
   if (!k) return null;
-  let pre = '';
+  const mk = s => ({ label, start: s.start, end: s.end, coarse: s.coarse });
+  if (AGE[k]) return mk(AGE[k]);
   for (const [p, de] of PREFIXES) {
-    if (k.startsWith(p) && k.length > p.length && AGE[k.slice(p.length)]) { pre = de; k = k.slice(p.length); break; }
+    if (k.startsWith(p) && k.length > p.length && AGE[k.slice(p.length)]) {
+      const s = AGE[k.slice(p.length)];
+      return { label, start: s.start, end: s.end, coarse: s.coarse || s.name };
+    }
   }
-  const s = AGE[k];
-  // Bei Unter-/Mittel-/Ober-Abteilungen bleibt der Zeitraum der ganzen Periode (grob, aber nicht falsch); "coarse" sagt das an.
-  if (s) return { label: pre ? pre + s.name.toLowerCase() : s.name, start: s.start, end: s.end, coarse: s.coarse || (pre ? s.name : null) };
-  const w = Tr.split(last);
-  return { label: w ? w[0].toUpperCase() + w.slice(1) : String(raw), start: null, end: null, coarse: null };
+  if (HOLO_WORDS.some(w => k.indexOf(w) >= 0)) return { label, start: 0.0117, end: 0, coarse: 'Holozän' };
+  if (QUAT_WORDS.some(w => k.indexOf(w) >= 0)) return { label, start: 2.58, end: 0.0117, coarse: 'Pleistozän' };
+  for (const ak of AGE_KEYS_BY_LEN) {
+    if (k.endsWith(ak)) { const s = AGE[ak]; return { label, start: s.start, end: s.end, coarse: s.coarse || s.name }; }
+  }
+  return { label, start: null, end: null, coarse: null };
 }
 function periodRange(start, end) {
   let lo = null, hi = null;
-  PERIODS.forEach((p, i) => {
-    if (p.start > end + 0.001 && p.end < start - 0.001) { if (lo === null) lo = i; hi = i; }
-  });
+  PERIODS.forEach((p, i) => { if (p.start > end + 0.001 && p.end < start - 0.001) { if (lo === null) lo = i; hi = i; } });
   return lo === null ? null : [lo, hi];
 }
-function unitAge(u) {
-  if (!u) return { label: 'Alter unbekannt', span: null, range: null };
-  const o = parseAge(u.older), y = parseAge(u.younger);
-  let label = 'Alter unbekannt';
-  if (o && y) label = o.label === y.label ? o.label : o.label + ' bis ' + y.label;
-  else if (o) label = o.label;
-  else if (y) label = y.label;
-  const starts = [o && o.start, y && y.start].filter(v => v !== null && v !== undefined && v !== false);
-  const ends = [o && o.end, y && y.end].filter(v => v !== null && v !== undefined && v !== false);
+/* Alter einer Einheit aus Anfang und Ende (deutsche Begriffe der GÜK250) */
+function ageInfo(startRaw, endRaw, totalRaw) {
+  const o = parseAge(startRaw), y = parseAge(endRaw);
+  let label = clean(totalRaw);
+  if (!label) label = o && y ? (o.label === y.label ? o.label : o.label + ' bis ' + y.label) : (o ? o.label : (y ? y.label : 'Alter unbekannt'));
+  const starts = [o && o.start, y && y.start].filter(v => typeof v === 'number');
+  const ends = [o && o.end, y && y.end].filter(v => typeof v === 'number');
   const span = starts.length && ends.length ? { start: Math.max(...starts), end: Math.min(...ends) } : null;
-  // coarse: Name der Periode, wenn beide Enden grob in derselben liegen; 'grob', wenn die Grenzen gemischt grob sind.
   const oc = o && o.coarse, yc = y && y.coarse;
   const coarse = (oc && yc && oc === yc) || (oc && !y) || (yc && !o) ? (oc || yc) : ((oc || yc) ? 'grob' : null);
   return { label, span, coarse, range: span ? periodRange(span.start, span.end) : null };
@@ -557,11 +582,120 @@ function spanText(start, end) {
   if (end <= 0) return 'vor ' + dec(start) + ' Mio. Jahren bis heute';
   return 'vor ' + dec(start) + ' bis ' + dec(end) + ' Mio. Jahren';
 }
+function spanNote(a) {
+  if (!a.span) return '';
+  if (a.coarse === 'grob') return 'Zeitraum grob: ca. ' + spanText(a.span.start, a.span.end);
+  if (a.coarse) return 'Gesamtzeitraum ' + a.coarse + ': ca. ' + spanText(a.span.start, a.span.end);
+  return 'ca. ' + spanText(a.span.start, a.span.end);
+}
 const inRange = (r, i) => !!r && i >= r[0] && i <= r[1];
 
+/* ================= Gesteinsgruppen (Einfärbung „Gestein“) ================= */
+const LITH = [
+  ['moor', 'Torf und Mudde', '#7a5b3a', /torf|moor|mudde/],
+  ['loess', 'Löss und Lösslehm', '#efd9a0', /löss|loess/],
+  ['salz', 'Salz, Gips, Anhydrit', '#86cfe0', /salz|gips|anhydrit/],
+  ['kohle', 'Kohle', '#3d3d3d', /kohle/],
+  ['pluton', 'Tiefengestein (z. B. Granit)', '#e07b91', /granit|granodiorit|diorit|gabbro|syenit|tonalit|monzo|pegmatit|plutonit/],
+  ['vulkan', 'Vulkangestein', '#9a6bb7', /basalt|basanit|phonolith|trachyt|tuff|rhyolith|andesit|latit|tephr|vulkan|diabas|keratophyr|porphyr|schlacke|lava/],
+  ['meta', 'Metamorphes Gestein', '#a8806b', /gneis|glimmerschiefer|phyllit|quarzit|marmor|amphibolit|migmatit|granulit|eklogit|serpentinit|hornfels|metamorph|skarn|grünschiefer/],
+  ['karbonat', 'Kalk, Dolomit, Mergel', '#6fa8dc', /kalk|dolomit|mergel|kreide/],
+  ['sandstein', 'Sandstein, Konglomerat', '#e3a35a', /sandstein|konglomerat|grauwacke|arkose|brekzie|breccie/],
+  ['tonstein', 'Ton-, Schluffstein, Schiefer', '#8fa07a', /tonstein|schluffstein|tonschiefer|siltstein|schieferton|pelit|kieselschiefer|lydit|schiefer/],
+  ['kies', 'Kies und Sand', '#f3df78', /kies|sand|schutt|geröll|blöcke|block/],
+  ['feinlocker', 'Ton, Schluff, Lehm', '#d6c38a', /ton|schluff|lehm|klei|schlick/],
+  ['kuenstlich', 'Künstliche Aufschüttung', '#bdbdbd', /aufschüttung|auffüllung|anthropogen|halde|abraum/]
+];
+const LITH_OTHER = ['sonst', 'Sonstiges', '#c8c8c8'];
+function lithClass(text) {
+  const t = String(text || '').toLowerCase();
+  if (!t) return null;
+  const first = t.split(',')[0];
+  for (const L of LITH) if (L[3].test(first)) return L;
+  for (const L of LITH) if (L[3].test(t)) return L;
+  return LITH_OTHER;
+}
+
+/* ================= Kurzerklärungen (Entwurf, nicht fachlich geprüft) ================= */
+const GLOSS = [
+  [/kalkstein/, 'Kalkstein', 'Sedimentgestein, das überwiegend aus Kalk (Calciumcarbonat) besteht. Es entsteht meist im Meer aus Schalen und Skeletten von Lebewesen oder durch Ausfällung.', 'Kalkstein'],
+  [/dolomit/, 'Dolomitstein', 'Karbonatgestein aus dem Mineral Dolomit, einem Calcium-Magnesium-Carbonat. Oft aus Kalkstein entstanden, in den Magnesium eingebaut wurde.', 'Dolomit_(Gestein)'],
+  [/mergel/, 'Mergel', 'Gemisch aus Ton und Kalk. Verfestigt heißt er Mergelstein.', 'Mergel'],
+  [/sandstein/, 'Sandstein', 'Verfestigter Sand mit Körnern von 0,063 bis 2 mm, meist Quarz. Ein Bindemittel wie Kalk, Kieselsäure oder Eisenoxid verkittet die Körner.', 'Sandstein'],
+  [/tonstein|schieferton/, 'Tonstein', 'Verfestigter Ton aus sehr feinen Teilchen unter 0,002 mm. Er entsteht in ruhigem Wasser, etwa in Seen oder im tieferen Meer.', 'Tonstein'],
+  [/schluffstein|siltstein/, 'Schluffstein', 'Verfestigter Schluff mit Korngrößen zwischen 0,002 und 0,063 mm.', 'Siltstein'],
+  [/konglomerat/, 'Konglomerat', 'Verfestigter Kies aus gerundeten Geröllen. Die Rundung zeigt einen langen Transport im Wasser an.', 'Konglomerat_(Gestein)'],
+  [/brekzie|breccie/, 'Brekzie', 'Gestein aus kantigen, verkitteten Bruchstücken, die kaum transportiert wurden.', 'Brekzie'],
+  [/grauwacke/, 'Grauwacke', 'Dunkler, schlecht sortierter Sandstein mit Gesteinsbruchstücken und Tonanteil, typisch für Gebirge des Erdaltertums.', 'Grauwacke'],
+  [/tonschiefer/, 'Tonschiefer', 'Schwach umgewandelter Tonstein, der sich in dünne Platten spalten lässt, zum Beispiel Dachschiefer.', 'Tonschiefer'],
+  [/löss/, 'Löss', 'Feiner, kalkhaltiger Staub, den der Wind in den Kaltzeiten ablagerte. Aus Löss entstehen sehr fruchtbare Böden.', 'Löss'],
+  [/torf/, 'Torf', 'Unvollständig zersetzte Pflanzenreste, die sich in Mooren unter Luftabschluss anreichern.', 'Torf'],
+  [/braunkohle/, 'Braunkohle', 'Aus Pflanzenresten entstandene, wenig umgewandelte Kohle; in Deutschland meist aus dem Tertiär.', 'Braunkohle'],
+  [/steinkohle/, 'Steinkohle', 'Stärker umgewandelte Kohle; in Deutschland vor allem aus dem Karbon.', 'Steinkohle'],
+  [/geschiebemergel|geschiebelehm|diamikt/, 'Geschiebemergel', 'Ungeschichtetes Gemisch aller Korngrößen vom Ton bis zum Block, das ein Gletscher an seiner Sohle abgelagert hat.', 'Geschiebemergel'],
+  [/(^|[^a-zäöü])kies/, 'Kies', 'Lockergestein aus Körnern von 2 bis 63 mm, meist von Flüssen oder Schmelzwasser abgelagert.', 'Kies'],
+  [/(^|[ ,(])sand([ ,)]|$)/, 'Sand', 'Lockergestein aus Körnern von 0,063 bis 2 mm.', 'Sand'],
+  [/(^|[ ,(])(ton|schluff)([ ,)]|$)/, 'Ton und Schluff', 'Sehr feinkörnige Lockergesteine: Ton unter 0,002 mm, Schluff 0,002 bis 0,063 mm.', 'Schluff'],
+  [/lehm/, 'Lehm', 'Gemisch aus Ton, Schluff und Sand.', 'Lehm'],
+  [/granit/, 'Granit', 'Grobkörniges Tiefengestein aus Feldspat, Quarz und Glimmer. Es ist tief in der Erdkruste aus einer Schmelze langsam erstarrt.', 'Granit'],
+  [/basalt|basanit/, 'Basalt', 'Dunkles, feinkörniges Vulkangestein aus rasch erstarrter Lava.', 'Basalt'],
+  [/(^|[^k])tuff/, 'Tuff', 'Verfestigte vulkanische Asche und Bruchstücke aus explosiven Ausbrüchen.', 'Tuff_(Gestein)'],
+  [/phonolith|trachyt/, 'Phonolith und Trachyt', 'Helle Vulkangesteine aus zähflüssiger Lava, oft als Kuppen erhalten.', 'Phonolith'],
+  [/rhyolith|porphyr/, 'Rhyolith', 'Helles, quarzreiches Vulkangestein. Ältere Bezeichnung: Quarzporphyr.', 'Rhyolith'],
+  [/gneis/, 'Gneis', 'Metamorphes Gestein mit lagigem Gefüge, entstanden unter hohem Druck und hoher Temperatur.', 'Gneis'],
+  [/glimmerschiefer/, 'Glimmerschiefer', 'Metamorphes Gestein mit viel Glimmer, das sich in Lagen spalten lässt.', 'Glimmerschiefer'],
+  [/phyllit/, 'Phyllit', 'Schwach metamorphes Gestein mit seidigem Glanz auf den Schieferflächen.', 'Phyllit'],
+  [/quarzit/, 'Quarzit', 'Sehr hartes Gestein, das fast nur aus Quarz besteht, meist aus umgewandeltem Quarzsandstein.', 'Quarzit'],
+  [/marmor/, 'Marmor', 'Durch Hitze und Druck umgewandelter Kalk- oder Dolomitstein.', 'Marmor'],
+  [/amphibolit/, 'Amphibolit', 'Dunkles metamorphes Gestein, meist aus umgewandeltem Basalt oder Gabbro.', 'Amphibolit'],
+  [/diabas/, 'Diabas', 'Ältere Bezeichnung für umgewandelte basaltische Gesteine des Erdaltertums.', 'Diabas'],
+  [/steinsalz|salz/, 'Steinsalz', 'Salzgestein, das beim Eindampfen von Meerwasser in abgeschnürten Becken entstand.', 'Steinsalz'],
+  [/gips|anhydrit/, 'Gips und Anhydrit', 'Calciumsulfat-Gesteine, die beim Eindampfen von Meerwasser ausfallen. Gips enthält Wasser, Anhydrit nicht.', 'Gips'],
+  [/kieselschiefer|lydit/, 'Kieselschiefer', 'Dunkles, sehr hartes Gestein aus Kieselsäure, oft aus Schalen von Radiolarien.', 'Lydit'],
+  [/schreibkreide/, 'Schreibkreide', 'Weicher, weißer Kalk aus den Skeletten winziger Algen (Coccolithen).', 'Kreide_(Gestein)'],
+  [/aufschüttung|auffüllung|anthropogen/, 'Künstliche Aufschüttung', 'Vom Menschen umgelagertes oder aufgeschüttetes Material, zum Beispiel Bauschutt oder Halden.', null],
+  [/flussablagerung|bachablagerung|fluviatil|fluvial/, 'Flussablagerungen', 'Sand, Kies und Schlamm, die Bäche und Flüsse transportiert und in ihrem Tal abgelagert haben.', 'Fluviatil'],
+  [/aue/, 'Aue', 'Talboden eines Flusses, der bei Hochwasser überflutet wird.', 'Aue'],
+  [/grundmoräne/, 'Grundmoräne', 'Unter dem Gletscher abgelagerter Schutt, meist Geschiebemergel.', 'Grundmoräne'],
+  [/endmoräne/, 'Endmoräne', 'Schuttwall am Rand eines Gletschers. Er zeigt, wie weit das Eis reichte.', 'Endmoräne'],
+  [/sander/, 'Sander', 'Schmelzwasserebene vor dem Gletscher aus Sand und Kies.', 'Sander_(Geomorphologie)'],
+  [/schmelzwasser|glazifluv/, 'Schmelzwasserablagerungen', 'Sand und Kies, die das Schmelzwasser der Gletscher abgelagert hat.', null],
+  [/flugsand|düne|äolisch/, 'Flugsand und Dünen', 'Vom Wind verwehter und abgelagerter Sand.', 'Flugsand'],
+  [/fließerde|solifluk/, 'Fließerde', 'Bodenmaterial, das in den Kaltzeiten über gefrorenem Untergrund hangabwärts floss.', 'Solifluktion'],
+  [/hangschutt|hanglehm/, 'Hangschutt', 'Am Hang abgelagerte Gesteinsbruchstücke aus der Verwitterung.', 'Hangschutt'],
+  [/lagune/, 'Lagune', 'Vom offenen Meer teilweise abgetrenntes Flachwasser.', 'Lagune'],
+  [/riff/, 'Riff', 'Von Lebewesen wie Korallen oder Schwämmen aufgebauter Kalkkörper im Meer.', 'Riff'],
+  [/delta/, 'Delta', 'Ablagerungskörper an einer Flussmündung.', 'Flussdelta'],
+  [/vulkan/, 'Vulkanismus', 'Aufstieg von Gesteinsschmelze bis an die Erdoberfläche.', 'Vulkanismus'],
+  [/plutonisch|intrusion|tiefengestein/, 'Tiefengestein', 'In der Erdkruste langsam erstarrte Schmelze, die erst durch Abtragung an die Oberfläche kam.', 'Plutonit'],
+  [/metamorph/, 'Metamorphose', 'Umwandlung von Gestein durch hohen Druck und hohe Temperatur, ohne dass es schmilzt.', 'Metamorphose_(Geologie)'],
+  [/verwitterung|residual/, 'Verwitterung', 'Zerfall und Zersetzung von Gestein an der Erdoberfläche.', 'Verwitterung'],
+  [/buntsandstein/, 'Buntsandstein', 'Unterste Abteilung der Germanischen Trias: überwiegend rote Sand- und Tonsteine, auf dem Festland abgelagert.', 'Buntsandstein'],
+  [/muschelkalk/, 'Muschelkalk', 'Mittlere Abteilung der Germanischen Trias: Kalk- und Mergelsteine eines flachen Meeres.', 'Muschelkalk'],
+  [/keuper/, 'Keuper', 'Obere Abteilung der Germanischen Trias: bunte Ton-, Mergel- und Sandsteine, überwiegend auf dem Festland abgelagert.', 'Keuper'],
+  [/zechstein/, 'Zechstein', 'Obere Abteilung des Perm in Mitteleuropa: Ablagerungen eines flachen Meeres mit mächtigen Salzgesteinen.', 'Zechstein'],
+  [/rotliegend/, 'Rotliegend', 'Untere Abteilung des Perm: rote, auf dem Festland abgelagerte Gesteine und Vulkanite.', 'Rotliegend'],
+  [/lias|schwarzjura|schwarzer jura/, 'Lias (Schwarzer Jura)', 'Unterjura: oft dunkle Ton- und Mergelsteine.', 'Lias'],
+  [/dogger|braunjura|brauner jura/, 'Dogger (Brauner Jura)', 'Mitteljura: oft braune, eisenhaltige Sand- und Tonsteine.', 'Dogger'],
+  [/malm|weißjura|weissjura|weißer jura/, 'Malm (Weißer Jura)', 'Oberjura: oft helle Kalksteine, zum Beispiel der Schwäbischen und Fränkischen Alb.', 'Malm'],
+  [/molasse/, 'Molasse', 'Abtragungsschutt der jungen Alpen, abgelagert im Vorlandbecken.', 'Molasse'],
+  [/kulm/, 'Kulm', 'Ausbildung des Unterkarbons mit Tonschiefern und Grauwacken, typisch für das Rheinische Schiefergebirge und den Harz.', 'Kulm_(Geologie)'],
+  [/flysch/, 'Flysch', 'Wechselfolge von Sand- und Tonsteinen, abgelagert in einem tiefen Becken vor einem entstehenden Gebirge.', 'Flysch']
+];
+function explain(texts, max) {
+  const t = texts.filter(Boolean).join(' · ').toLowerCase();
+  const out = [];
+  for (const g of GLOSS) { if (g[0].test(t) && !out.some(o => o[1] === g[1])) out.push(g); if (out.length >= (max || 4)) break; }
+  return out;
+}
+function explainHTML(list) {
+  if (!list.length) return '';
+  return '<div class="explain">' + list.map(g => '<div><b>' + esc(g[1]) + ':</b> ' + esc(g[2]) +
+    (g[3] ? ' <a href="https://de.wikipedia.org/wiki/' + esc(encodeURIComponent(g[3]).replace(/%2F/g, '/')) + '" target="_blank" rel="noopener">Wikipedia</a> <span class="src-type">· Enzyklopädie</span>' : '') +
+    '</div>').join('') + '<p class="draft">Kurzerklärungen: Entwurf, nicht fachlich geprüft</p></div>';
+}
+
 /* ================= Story Cards ================= */
-/* Aussagen mit Quelle wurden in einem unabhängigen Faktencheck gegen die verlinkte Seite geprüft.
-   Aussagen ohne Quelle sind allgemeines Wissen, aber unbelegt, und werden so gekennzeichnet. */
 const SRC = {
   eiszeit: { t: 'E&G Quaternary Science Journal 56 (2007)', u: 'https://egqsj.copernicus.org/articles/56/7/2007/egqsj-56-7-2007.pdf', k: 'Fachzeitschrift' },
   loess: { t: 'Löss und Lössböden, Poster', u: 'https://www.gd.nrw.de/zip/bo_poster-loessboden.pdf', k: 'Landesamt (GD NRW)' },
@@ -633,6 +767,12 @@ const CARDS = {
     ['Präkambrische Gesteine kommen in Deutschland nur an wenigen Stellen vor oder sind stark umgewandelt. Eine belastbare Angabe zu den ältesten datierten Gesteinen Deutschlands steht noch aus.', null]],
     e: [] }
 };
+function claimHTML(c) {
+  const s = c[1] ? SRC[c[1]] : null;
+  return '<li><p>' + esc(c[0]) + '</p>' + (s
+    ? '<a class="src" href="' + esc(s.u) + '" target="_blank" rel="noopener">' + esc(s.t) + '</a> <span class="src-type">· ' + esc(s.k) + '</span>'
+    : '<span class="pending">Beleg ausstehend</span>') + '</li>';
+}
 
 /* ================= Netz: fetch mit JSONP-Ausweichweg ================= */
 class HttpError extends Error { constructor(code) { super('HTTP-Fehler ' + code); this.code = code; } }
@@ -651,51 +791,48 @@ function jsonp(url, timeout) {
     document.head.appendChild(s);
   });
 }
-async function fetchT(url, ms) {
+async function fetchT(url, ms, signal) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), ms);
+  if (signal) signal.addEventListener('abort', () => ctl.abort());
   try { return await fetch(url, { signal: ctl.signal, mode: 'cors', credentials: 'omit' }); }
   finally { clearTimeout(t); }
 }
-async function getJSON(url, params) {
+async function getJSON(url, params, ms) {
   const full = url + '?' + new URLSearchParams(params).toString();
+  const timeout = ms || 20000;
   let obj;
   if (transport === 'fetch') {
     try {
-      const res = await fetchT(full, 20000);
+      const res = await fetchT(full, timeout);
       if (!res.ok) throw new HttpError(res.status);
       obj = await res.json();
     } catch (e) {
       if (e instanceof HttpError) throw e;
       if (e && e.name === 'AbortError') throw new Error('Zeitüberschreitung');
-      transport = 'jsonp';               // Dienst erlaubt vermutlich keine Browser-Abfragen (CORS)
-      obj = await jsonp(full, 20000);
+      transport = 'jsonp';
+      obj = await jsonp(full, timeout);
     }
   } else {
-    obj = await jsonp(full, 20000);
+    obj = await jsonp(full, timeout);
   }
   if (obj && obj.error) throw new Error('Dienstfehler: ' + (obj.error.message || 'unbekannt'));
   return obj;
 }
-const lower = a => { const o = {}; Object.keys(a || {}).forEach(k => { o[k.toLowerCase()] = a[k]; }); return o; };
-const str = v => {
-  if (v === null || v === undefined) return null;
-  const s = String(v).trim();
-  return (!s || /^(null|<null>)$/i.test(s)) ? null : s;
-};
-const errMsg = e => (e && e.message) ? e.message : 'unbekannter Fehler';
-const round3 = v => Math.round(v * 1000) / 1000;
 
-function parseUnit(j, overlay) {
-  const f = j && Array.isArray(j.features) ? j.features[0] : null;
-  if (!f || !f.attributes) return null;
-  const a = lower(f.attributes);
-  const material = (str(a.material) || '').split(/[;|,]/).map(s => s.trim()).filter(Boolean);
-  return { material, older: str(a.oldernamedage), younger: str(a.youngernamedage), process: str(a.eventprocess),
-    env: str(a.eventenvironment), inspireId: str(a.inspireid), overlay };
+/* ================= Punktabfrage (GÜK250 deutsch, BÜK200) ================= */
+function makeUnit(kind, s, p, g) {
+  if (!s) return null;
+  const a = ageInfo(s.alter_anfang, s.alter_ende, s.alter_gesamt || s.leg_alter_gesamt_text);
+  const petro = p ? clean(p.klartext) || clean(p.klartext_kurz) : null;
+  return {
+    kind, id: s.objectid || null, age: a,
+    strat: [clean(s.lithostrat_regiostrat_1), clean(s.lithostrat_regiostrat_2)].filter(Boolean),
+    local: clean(s.lokalitaet_gebiet), thick: clean(s.maechtigkeit), extra: clean(s.s_zusatz),
+    petro, genese: g ? clean(g.petrogen_text) : null, prozess: g ? clean(g.bprozess_text) : null,
+    raum: g ? clean(g.braum_text) : null, milieu: g ? clean(g.bmilieu_text) : null
+  };
 }
-/* Boden (BÜK200): Die Kartenblätter sind eigene Ebenen und nur bei 1:100.000 bis 1:400.000 sichtbar.
-   Schritt 1: identify in diesem Maßstab findet das Blatt. Schritt 2: Punktabfrage genau auf dieser Ebene. */
 const prettySheet = s => {
   const m = String(s || '').match(/^CC\s*(\d+)\s+(.*)$/i);
   if (!m) return String(s || '');
@@ -703,7 +840,7 @@ const prettySheet = s => {
 };
 async function soilLookup(c) {
   const dx = 0.15, dy = 0.1;
-  const idf = await getJSON(BGR.buek + '/identify', {
+  const idf = await getJSON(BUEK + '/identify', {
     geometry: c.lon + ',' + c.lat, geometryType: 'esriGeometryPoint', sr: '4326', layers: 'all', tolerance: '1',
     mapExtent: [c.lon - dx, c.lat - dy, c.lon + dx, c.lat + dy].map(v => v.toFixed(4)).join(','),
     imageDisplay: '400,300,96', returnGeometry: 'false', f: 'json' });
@@ -711,7 +848,7 @@ async function soilLookup(c) {
   if (!hits.length) return null;
   let attrs = null;
   try {
-    const q = await getJSON(BGR.buek + '/' + hits[0].layerId + '/query', {
+    const q = await getJSON(BUEK + '/' + hits[0].layerId + '/query', {
       geometry: c.lon + ',' + c.lat, geometryType: 'esriGeometryPoint', inSR: '4326',
       spatialRel: 'esriSpatialRelIntersects', outFields: '*', returnGeometry: 'false', f: 'json' });
     const f = q && Array.isArray(q.features) ? q.features[0] : null;
@@ -719,30 +856,32 @@ async function soilLookup(c) {
   } catch (e) { /* dann der erste identify-Treffer */ }
   const approx = !attrs;
   const a = lower(attrs || hits[0].attributes);
-  const text = str(a.leg_text) || str(a.legendentext);
+  const text = clean(a.leg_text) || clean(a.legendentext);
   if (!text) return null;
-  const profile = (str(a.profile) || '').replace(/&amp;/g, '&');
-  return { text: text.replace(/\*/g, ''), sheet: prettySheet(hits[0].layerName), hint: str(a.hinweis), approx,
+  const profile = (clean(a.profile) || '').replace(/&amp;/g, '&');
+  return { text: text.replace(/\*/g, ''), sheet: prettySheet(hits[0].layerName), hint: clean(a.hinweis), approx,
     profile: /^https:\/\/fisbo\.bgr\.de\//.test(profile) ? profile : null };
 }
 async function lookup(ll, name) {
   const c = { lat: round3(ll.lat), lon: round3(ll.lon) };
-  const pt = { geometry: c.lon + ',' + c.lat, geometryType: 'esriGeometryPoint', inSR: '4326' };
-  const qUnit = layer => getJSON(BGR.guek + '/' + layer + '/query',
-    Object.assign({}, pt, { spatialRel: 'esriSpatialRelIntersects', outFields: '*', returnGeometry: 'false', f: 'json' }))
-    .then(j => parseUnit(j, layer === BGR.overlay));
-  const qFault = getJSON(BGR.guek + '/' + BGR.fault + '/query',
-    Object.assign({}, pt, { distance: String(BGR.faultRadius), units: 'esriSRUnit_Meter', spatialRel: 'esriSpatialRelIntersects', returnCountOnly: 'true', f: 'json' }))
+  const pt = { geometry: c.lon + ',' + c.lat, geometryType: 'esriGeometryPoint', inSR: '4326', spatialRel: 'esriSpatialRelIntersects', returnGeometry: 'false', f: 'json' };
+  const q = (layer, fields) => getJSON(G250 + '/' + layer + '/query', Object.assign({}, pt, { outFields: fields }))
+    .then(j => j && Array.isArray(j.features) && j.features[0] ? lower(j.features[0].attributes) : null);
+  const qFault = getJSON(G250 + '/' + LY.tekt + '/query', Object.assign({}, pt, { distance: String(FAULT_RADIUS), units: 'esriSRUnit_Meter', returnCountOnly: 'true' }))
     .then(j => (j && typeof j.count === 'number') ? j.count : null);
-  const qSoil = soilLookup(c);
-  const [b, o, f, s] = await Promise.allSettled([qUnit(BGR.base), qUnit(BGR.overlay), qFault, qSoil]);
+  const [sb, pb, gb, so, f, s] = await Promise.allSettled([q(LY.stratBase, STRAT_F), q(LY.petroBase, PETRO_F), q(LY.genBase, GEN_F), q(LY.stratOver, STRAT_F), qFault, soilLookup(c)]);
+  const val = x => x.status === 'fulfilled' ? x.value : null;
   const r = { lat: c.lat, lon: c.lon, name: name || null, at: Date.now(), base: null, overlay: null, faults: null, soil: null, notes: [], failed: false };
-  if (b.status === 'fulfilled') r.base = b.value; else r.notes.push('Geologie (Grundschicht): ' + errMsg(b.reason));
-  if (o.status === 'fulfilled') r.overlay = o.value; else r.notes.push('Geologie (Deckschicht): ' + errMsg(o.reason));
+  if (sb.status === 'rejected') r.notes.push('Geologie: ' + errMsg(sb.reason));
+  r.base = makeUnit('base', val(sb), val(pb), val(gb));
+  if (val(so)) {
+    const [po, go] = await Promise.allSettled([q(LY.petroOver, PETRO_F), q(LY.genOver, GEN_F)]);
+    r.overlay = makeUnit('over', val(so), val(po), val(go));
+  }
   if (f.status === 'fulfilled') r.faults = f.value; else r.notes.push('Störungen: ' + errMsg(f.reason));
   if (s.status === 'fulfilled') r.soil = s.value; else r.notes.push('Boden: ' + errMsg(s.reason));
-  r.failed = b.status === 'rejected' && o.status === 'rejected';
-  if (!r.base && !r.overlay && r.notes.length === 0) r.notes.push('Für diesen Punkt liefert die GÜK250 keine Einheit (außerhalb Deutschlands oder Gewässer).');
+  r.failed = sb.status === 'rejected';
+  if (!r.base && !r.overlay && !r.failed) r.notes.push('Für diesen Punkt liefert die GÜK250 keine Einheit (außerhalb Deutschlands oder Gewässer).');
   return r;
 }
 
@@ -758,6 +897,8 @@ function unproject(x, y, z) {
   const n = Math.PI - 2 * Math.PI * y / s;
   return { lat: 180 / Math.PI * Math.atan(Math.sinh(n)), lon: x / s * 360 - 180 };
 }
+const mercX = lon => (lon + 180) / 360;
+const mercY = lat => { const r = clamp(lat, -85.05, 85.05) * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2; };
 function distance(a, b) {
   const R = 6371000, toR = Math.PI / 180;
   const dLat = (b.lat - a.lat) * toR, dLon = (b.lon - a.lon) * toR;
@@ -769,9 +910,11 @@ const fmtDist = m => m >= 1000 ? (m / 1000).toFixed(1).replace('.', ',') + ' km'
 /* ================= Eigene Kachelkarte ================= */
 class SlippyMap {
   constructor(el) {
-    this.el = el; this.center = { lat: 51.16, lon: 10.45 }; this.zoom = 6; this.minZoom = 4; this.maxZoom = 17;
-    this.layers = []; this.markers = {}; this.pointers = new Map(); this.raf = 0; this.onLongPress = null;
+    this.el = el; this.center = { lat: 51.16, lon: 10.45 }; this.zoom = 6; this.minZoom = 5; this.maxZoom = 17;
+    this.layers = []; this.markers = {}; this.pointers = new Map(); this.raf = 0;
+    this.onLongPress = null; this.onTap = null; this.onRender = null;
     this.tilePane = document.createElement('div'); this.tilePane.className = 'tiles'; el.appendChild(this.tilePane);
+    this.canvas = document.createElement('canvas'); this.canvas.className = 'geocanvas'; el.appendChild(this.canvas);
     this.markerPane = document.createElement('div'); this.markerPane.className = 'markers'; el.appendChild(this.markerPane);
     this.bind();
     if (window.ResizeObserver) new ResizeObserver(() => this.render()).observe(el);
@@ -780,29 +923,37 @@ class SlippyMap {
   addLayer(id, urlFn, opts) {
     opts = opts || {};
     const div = document.createElement('div'); div.className = 'layer';
-    div.style.opacity = opts.opacity == null ? 1 : opts.opacity;
     this.tilePane.appendChild(div);
     const L = { id, urlFn, div, tiles: new Map(), maxZoom: opts.maxZoom == null ? 19 : opts.maxZoom, minZoom: opts.minZoom || 0 };
     this.layers.push(L); this.render(); return L;
   }
-  setLayerUrl(id, urlFn) {
+  setLayer(id, urlFn, maxZoom) {
     const L = this.layers.find(l => l.id === id); if (!L) return;
-    L.urlFn = urlFn; L.tiles.forEach(img => img.remove()); L.tiles.clear(); L.div.hidden = !urlFn; this.render();
+    L.urlFn = urlFn; if (maxZoom) L.maxZoom = maxZoom;
+    L.tiles.forEach(img => img.remove()); L.tiles.clear(); this.render();
   }
-  setMarker(id, ll, cls) {
+  setMarker(id, ll, cls, html, onClick) {
     let m = this.markers[id];
     if (!ll) { if (m) { m.el.remove(); delete this.markers[id]; } return; }
-    if (!m) { const e = document.createElement('div'); e.className = 'marker ' + (cls || ''); this.markerPane.appendChild(e); m = this.markers[id] = { el: e, ll }; }
-    m.ll = ll; this.render();
+    if (!m) {
+      const e = document.createElement('div'); e.className = 'marker ' + (cls || '');
+      if (html) e.innerHTML = html;
+      if (onClick) {
+        e.addEventListener('pointerdown', ev => ev.stopPropagation());
+        e.addEventListener('click', ev => { ev.stopPropagation(); onClick(); });
+      }
+      this.markerPane.appendChild(e); m = this.markers[id] = { el: e, ll };
+    }
+    m.ll = ll; this.schedule();
   }
+  clearMarkers(prefix) { Object.keys(this.markers).forEach(id => { if (id.indexOf(prefix) === 0) this.setMarker(id, null); }); }
   setView(ll, z) { this.center = { lat: ll.lat, lon: ll.lon }; if (z != null) this.zoom = clamp(z, this.minZoom, this.maxZoom); this.render(); }
   schedule() { if (!this.raf) this.raf = requestAnimationFrame(() => { this.raf = 0; this.render(); }); }
   render() {
     const w = this.el.clientWidth, h = this.el.clientHeight;
     if (!w || !h) return;
     for (const L of this.layers) {
-      if (!L.urlFn) continue;
-      if (this.zoom < L.minZoom) { L.div.hidden = true; continue; }
+      if (!L.urlFn || this.zoom < L.minZoom) { L.div.hidden = true; continue; }
       L.div.hidden = false;
       const zi = clamp(Math.floor(this.zoom), L.minZoom, L.maxZoom);
       const scale = Math.pow(2, this.zoom - zi), ts = TILE * scale;
@@ -813,13 +964,13 @@ class SlippyMap {
       const want = new Set();
       for (let ty = y0; ty <= y1; ty++) {
         for (let tx = x0; tx <= x1; tx++) {
-          const key = zi + '/' + tx + '/' + ty; want.add(key);
-          let img = L.tiles.get(key);
+          const k = zi + '/' + tx + '/' + ty; want.add(k);
+          let img = L.tiles.get(k);
           if (!img) {
             img = new Image(); img.alt = ''; img.draggable = false; img.decoding = 'async'; img.className = 'tile';
             img.onload = () => img.classList.add('ok'); img.onerror = () => img.classList.add('err');
             img.src = L.urlFn(zi, ((tx % n) + n) % n, ty);
-            L.div.appendChild(img); L.tiles.set(key, img);
+            L.div.appendChild(img); L.tiles.set(k, img);
           }
           img.style.width = img.style.height = (ts + 0.6) + 'px';
           img.style.transform = 'translate3d(' + ((tx * TILE - left) * scale) + 'px,' + ((ty * TILE - top) * scale) + 'px,0)';
@@ -846,7 +997,7 @@ class SlippyMap {
   bind() {
     const el = this.el;
     const rel = e => { const r = el.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-    let drag = null, pinch = null, lp = null, moved = false, lastTap = 0, lastTapPos = null;
+    let drag = null, pinch = null, lp = null, moved = false, lastTap = 0, lastTapPos = null, tapTimer = null;
     const clearLp = () => { if (lp) { clearTimeout(lp.t); lp = null; } };
     el.addEventListener('pointerdown', e => {
       if (e.button > 0) return;
@@ -859,7 +1010,7 @@ class SlippyMap {
         lp = { t: setTimeout(() => {
           lp = null; drag = null; moved = true;
           if (this.onLongPress) this.onLongPress(this.latLngAt(p.x, p.y));
-        }, 600) };
+        }, 650) };
       } else if (this.pointers.size === 2) {
         clearLp(); drag = null; moved = true;
         const pts = Array.from(this.pointers.values());
@@ -897,8 +1048,13 @@ class SlippyMap {
         if (wasTap && e.type === 'pointerup') {
           const now = Date.now();
           if (now - lastTap < 320 && lastTapPos && Math.hypot(p.x - lastTapPos.x, p.y - lastTapPos.y) < 30) {
+            clearTimeout(tapTimer); tapTimer = null;
             this.zoomAround(p.x, p.y, Math.round(this.zoom) + 1); lastTap = 0;
-          } else { lastTap = now; lastTapPos = p; }
+          } else {
+            lastTap = now; lastTapPos = p;
+            clearTimeout(tapTimer);
+            tapTimer = setTimeout(() => { tapTimer = null; if (this.onTap) this.onTap(this.latLngAt(p.x, p.y), p); }, 330);
+          }
         }
       }
     };
@@ -908,38 +1064,304 @@ class SlippyMap {
     el.addEventListener('contextmenu', e => e.preventDefault());
   }
 }
-function bgrTiles(layerId) {
-  return (z, x, y) => {
-    const world = 40075016.685578488, size = world / Math.pow(2, z);
-    const minX = -world / 2 + x * size, maxX = minX + size, maxY = world / 2 - y * size, minY = maxY - size;
-    return BGR.guek + '/export?bbox=' + [minX, minY, maxX, maxY].map(v => v.toFixed(2)).join(',') +
-      '&bboxSR=3857&imageSR=3857&size=256,256&format=png32&transparent=true&layers=show:' + layerId + '&f=image';
-  };
-}
-const osmTiles = (z, x, y) => 'https://tile.openstreetmap.org/' + z + '/' + x + '/' + y + '.png';
 
 /* ================= Zustand ================= */
 const S = {
-  result: store.get('geo.result.v2', null),
-  fromCache: false,
-  source: 'gps',
-  loading: false,
-  pos: null,
-  lastQuery: null,
-  moved: 0,
-  auto: !!store.get('geo.auto', false),
-  sel: 0,
+  result: store.get('geo.result.v3', null),
+  fromCache: false, source: 'gps', loading: false, pos: null, lastQuery: null, moved: 0,
+  auto: !!store.get('geo.auto', false), sel: 0,
   geo: 'idle',            // idle | asking | on | denied | unavailable | insecure
-  net: null,              // Ergebnis des Verbindungstests: { osm, bgr }
-  reqId: 0,
-  view: 'karte',
-  centeredOnce: false
+  net: null, reqId: 0, view: 'karte', centeredOnce: false,
+  mode: store.get('geo.mode', 'age'), base: store.get('geo.base', 'osm'), opacity: store.get('geo.opacity', 0.65),
+  showFaults: store.get('geo.faults', true), showIce: store.get('geo.ice', true), showHl: store.get('geo.hl', true),
+  panelOpen: false, tab: 'hier', legendFocus: null, focus: null, hl: null, hlSel: null, hlLoading: false, hlError: null
 };
 S.fromCache = !!S.result;
-const AUTO_THRESHOLD = 250;
-const BANNER_THRESHOLD = 50;
-const ranges = () => ({ surface: S.result ? unitAge(S.result.base).range : null, overlay: S.result && S.result.overlay ? unitAge(S.result.overlay).range : null });
+const AUTO_THRESHOLD = 250, BANNER_THRESHOLD = 50;
+const ranges = () => ({ surface: S.result && S.result.base ? S.result.base.age.range : null, overlay: S.result && S.result.overlay ? S.result.overlay.age.range : null });
 function updateSelection() { const r = ranges().surface; if (r) setSel(r[0], true); }
+
+/* ================= Vektordaten der GÜK250 ================= */
+const GD = { units: new Map(), lines: new Map(), cells: new Map(), petro: new Map(), queue: [], busy: 0 };
+function toMercRings(geom) {
+  if (!geom) return null;
+  const polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : null;
+  if (!polys) return null;
+  const rings = [];
+  let minx = 1, miny = 1, maxx = 0, maxy = 0;
+  polys.forEach(poly => poly.forEach(ring => {
+    const a = new Float64Array(ring.length * 2);
+    ring.forEach((pt, i) => {
+      const x = mercX(pt[0]), y = mercY(pt[1]); a[2 * i] = x; a[2 * i + 1] = y;
+      if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+    });
+    rings.push(a);
+  }));
+  return { rings, bbox: [minx, miny, maxx, maxy] };
+}
+function toMercLines(geom) {
+  if (!geom) return null;
+  const lines = geom.type === 'LineString' ? [geom.coordinates] : geom.type === 'MultiLineString' ? geom.coordinates : null;
+  if (!lines) return null;
+  let minx = 1, miny = 1, maxx = 0, maxy = 0;
+  const out = lines.map(line => {
+    const a = new Float64Array(line.length * 2);
+    line.forEach((pt, i) => { const x = mercX(pt[0]), y = mercY(pt[1]); a[2 * i] = x; a[2 * i + 1] = y;
+      if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y; });
+    return a;
+  });
+  return { lines: out, bbox: [minx, miny, maxx, maxy] };
+}
+function addPolys(fc, kind) {
+  (fc && fc.features || []).forEach(f => {
+    const p = lower(f.properties || {});
+    const id = kind + ':' + (p.objectid != null ? p.objectid : f.id);
+    if (GD.units.has(id)) return;
+    const g = toMercRings(f.geometry); if (!g) return;
+    const age = ageInfo(p.alter_anfang, p.alter_ende, p.alter_gesamt || p.leg_alter_gesamt_text);
+    GD.units.set(id, { id, oid: p.objectid, kind, props: p, age, period: age.range ? age.range[1] : null, rings: g.rings, bbox: g.bbox });
+  });
+}
+function addLines(fc, kind) {
+  (fc && fc.features || []).forEach(f => {
+    const p = lower(f.properties || {});
+    const id = kind + ':' + (p.objectid != null ? p.objectid : f.id);
+    if (GD.lines.has(id)) return;
+    const g = toMercLines(f.geometry); if (!g) return;
+    GD.lines.set(id, { id, kind, type: clean(p.linientyp) || '', lines: g.lines, bbox: g.bbox });
+  });
+}
+function addPetro(j) { (j && j.features || []).forEach(f => { const a = lower(f.attributes); GD.petro.set(a.objectid, clean(a.klartext) || clean(a.klartext_kurz)); }); }
+function cellsInView() {
+  const w = map.el.clientWidth, h = map.el.clientHeight;
+  const a = map.latLngAt(0, 0), b = map.latLngAt(w, h);
+  const c = map.center, out = [];
+  for (let i = Math.floor(b.lat / CELL); i <= Math.floor(a.lat / CELL); i++)
+    for (let j = Math.floor(a.lon / CELL); j <= Math.floor(b.lon / CELL); j++) {
+      const d = Math.hypot((i + 0.5) * CELL - c.lat, ((j + 0.5) * CELL - c.lon) * 0.65);
+      out.push({ i, j, d });
+    }
+  return out.sort((x, y) => x.d - y.d);
+}
+function requestCells() {
+  if (S.mode === 'off' || map.zoom < VEC_MIN_ZOOM) { GD.queue = []; renderLoadHint(); return; }
+  const want = cellsInView().filter(c => !GD.cells.has(c.i + '|' + c.j));
+  GD.queue = want;
+  pumpQueue();
+  renderLoadHint();
+}
+function pumpQueue() {
+  while (GD.busy < 1 && GD.queue.length) {
+    const c = GD.queue.shift();
+    const k = c.i + '|' + c.j;
+    if (GD.cells.has(k)) continue;
+    GD.busy++; GD.cells.set(k, 'loading');
+    loadCell(c.i, c.j).then(() => { GD.cells.set(k, 'done'); })
+      .catch(() => { GD.cells.set(k, 'error'); setTimeout(() => { if (GD.cells.get(k) === 'error') GD.cells.delete(k); }, 30000); })
+      .finally(() => { GD.busy--; drawGeo(); renderLegendIfOpen(); renderLoadHint(); pumpQueue(); });
+  }
+}
+async function loadCell(i, j) {
+  const env = { geometry: [j * CELL, i * CELL, (j + 1) * CELL, (i + 1) * CELL].map(v => v.toFixed(4)).join(','), geometryType: 'esriGeometryEnvelope',
+    inSR: '4326', spatialRel: 'esriSpatialRelIntersects', outSR: '4326' };
+  const geo = (layer, fields) => getJSON(G250 + '/' + layer + '/query', Object.assign({}, env, { outFields: fields, returnGeometry: 'true',
+    maxAllowableOffset: '0.0005', geometryPrecision: '4', f: 'geojson' }), 30000);
+  const attrs = (layer, fields) => getJSON(G250 + '/' + layer + '/query', Object.assign({}, env, { outFields: fields, returnGeometry: 'false', f: 'json' }), 30000);
+  const [base, over] = await Promise.all([geo(LY.stratBase, STRAT_F), geo(LY.stratOver, STRAT_F)]);
+  addPolys(base, 'base'); addPolys(over, 'over');
+  drawGeo();
+  const [tekt, eis, pb, po] = await Promise.allSettled([geo(LY.tekt, 'OBJECTID,Linientyp'), geo(LY.eis, 'OBJECTID,LINIENTYP'),
+    attrs(LY.petroBase, PETRO_F), attrs(LY.petroOver, PETRO_F)]);
+  if (tekt.status === 'fulfilled') addLines(tekt.value, 'fault');
+  if (eis.status === 'fulfilled') addLines(eis.value, 'ice');
+  if (pb.status === 'fulfilled') addPetro(pb.value);
+  if (po.status === 'fulfilled') addPetro(po.value);
+  if (GD.cells.size > 60) pruneCells();
+}
+function pruneCells() {
+  const keep = new Set(cellsInView().map(c => c.i + '|' + c.j));
+  for (const k of GD.cells.keys()) if (!keep.has(k)) GD.cells.delete(k);
+  const w = map.el.clientWidth, h = map.el.clientHeight, a = map.latLngAt(-w, -h), b = map.latLngAt(2 * w, 2 * h);
+  const box = [mercX(a.lon), mercY(a.lat), mercX(b.lon), mercY(b.lat)];
+  const out = u => u.bbox[2] < box[0] || u.bbox[0] > box[2] || u.bbox[3] < box[1] || u.bbox[1] > box[3];
+  for (const [k, u] of GD.units) if (out(u)) GD.units.delete(k);
+  for (const [k, l] of GD.lines) if (out(l)) GD.lines.delete(k);
+}
+function unitColor(u) {
+  if (S.mode === 'lith') { const L = lithClass(GD.petro.get(u.oid)); return L ? L[2] : '#d0d0d0'; }
+  return u.period !== null ? PERIODS[u.period].color : '#cfcfcf';
+}
+function unitLegendKey(u) {
+  if (S.mode === 'lith') { const L = lithClass(GD.petro.get(u.oid)); return L ? L[0] : null; }
+  return u.period !== null ? String(u.period) : null;
+}
+let hatchCache = {};
+function hatch(ctx, color) {
+  if (hatchCache[color]) return hatchCache[color];
+  const c = document.createElement('canvas'); c.width = c.height = 8;
+  const g = c.getContext('2d');
+  g.strokeStyle = color; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(-2, 10); g.lineTo(10, -2); g.moveTo(6, 10); g.lineTo(10, 6); g.moveTo(-2, 2); g.lineTo(2, -2); g.stroke();
+  return (hatchCache[color] = ctx.createPattern(c, 'repeat'));
+}
+function viewTransform() {
+  const w = map.el.clientWidth, h = map.el.clientHeight, s = TILE * Math.pow(2, map.zoom);
+  const cx = mercX(map.center.lon) * s, cy = mercY(map.center.lat) * s;
+  return { w, h, s, ox: w / 2 - cx, oy: h / 2 - cy, box: [(-(w / 2 - cx)) / s, (-(h / 2 - cy)) / s, (w - (w / 2 - cx)) / s, (h - (h / 2 - cy)) / s] };
+}
+const inBox = (b, box) => !(b[2] < box[0] || b[0] > box[2] || b[3] < box[1] || b[1] > box[3]);
+function tracePath(ctx, arrays, T, closed) {
+  for (const a of arrays) {
+    for (let i = 0; i < a.length; i += 2) {
+      const x = a[i] * T.s + T.ox, y = a[i + 1] * T.s + T.oy;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    if (closed) ctx.closePath();
+  }
+}
+function drawGeo() {
+  const cv = map.canvas;
+  const T = viewTransform();
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  if (cv.width !== Math.round(T.w * dpr) || cv.height !== Math.round(T.h * dpr)) {
+    cv.width = Math.round(T.w * dpr); cv.height = Math.round(T.h * dpr); cv.style.width = T.w + 'px'; cv.style.height = T.h + 'px';
+  }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, T.w, T.h);
+  if (S.mode === 'off' || map.zoom < VEC_MIN_ZOOM) return;
+  const vis = [];
+  for (const u of GD.units.values()) if (inBox(u.bbox, T.box)) vis.push(u);
+  const base = vis.filter(u => u.kind === 'base'), over = vis.filter(u => u.kind === 'over');
+  // Flächen
+  for (const u of base) {
+    const dim = S.legendFocus !== null && unitLegendKey(u) !== S.legendFocus;
+    ctx.globalAlpha = dim ? S.opacity * 0.18 : S.opacity;
+    ctx.fillStyle = unitColor(u);
+    ctx.beginPath(); tracePath(ctx, u.rings, T, true); ctx.fill('evenodd');
+  }
+  // Deckschicht schraffiert
+  ctx.globalAlpha = Math.min(1, S.opacity + 0.2);
+  for (const u of over) {
+    ctx.fillStyle = hatch(ctx, S.mode === 'lith' ? '#9a8a3a' : '#b8a32c');
+    ctx.beginPath(); tracePath(ctx, u.rings, T, true); ctx.fill('evenodd');
+  }
+  // Grenzen
+  ctx.globalAlpha = 1;
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(25,30,28,.55)'; ctx.lineWidth = map.zoom >= 12 ? 1 : 0.7;
+  ctx.beginPath(); for (const u of base) tracePath(ctx, u.rings, T, true); ctx.stroke();
+  ctx.setLineDash([4, 3]); ctx.strokeStyle = 'rgba(120,100,20,.8)';
+  ctx.beginPath(); for (const u of over) tracePath(ctx, u.rings, T, true); ctx.stroke();
+  ctx.setLineDash([]);
+  // Linien
+  for (const l of GD.lines.values()) {
+    if (!inBox(l.bbox, T.box)) continue;
+    if (l.kind === 'fault' && !S.showFaults) continue;
+    if (l.kind === 'ice' && !S.showIce) continue;
+    ctx.beginPath(); tracePath(ctx, l.lines, T, false);
+    if (l.kind === 'fault') {
+      ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 1.8;
+      ctx.setLineDash(/vermutet|bedeckung/i.test(l.type) ? [6, 4] : []);
+    } else {
+      ctx.strokeStyle = '#1f6fd1'; ctx.lineWidth = 2; ctx.setLineDash([7, 4]);
+    }
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  // Ausgewählte Einheit
+  const f = S.focus && S.focus.unitId ? GD.units.get(S.focus.unitId) : null;
+  if (f && inBox(f.bbox, T.box)) {
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 5; ctx.beginPath(); tracePath(ctx, f.rings, T, true); ctx.stroke();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 2.2; ctx.beginPath(); tracePath(ctx, f.rings, T, true); ctx.stroke();
+  }
+}
+function pointInRings(x, y, rings) {
+  let inside = false;
+  for (const a of rings) {
+    for (let i = 0, j = a.length - 2; i < a.length; j = i, i += 2) {
+      const xi = a[i], yi = a[i + 1], xj = a[j], yj = a[j + 1];
+      if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+    }
+  }
+  return inside;
+}
+function unitAt(ll, kind) {
+  const x = mercX(ll.lon), y = mercY(ll.lat);
+  for (const u of GD.units.values()) {
+    if (u.kind !== kind) continue;
+    const b = u.bbox; if (x < b[0] || x > b[2] || y < b[1] || y > b[3]) continue;
+    if (pointInRings(x, y, u.rings)) return u;
+  }
+  return null;
+}
+
+/* ================= Highlights (OpenStreetMap über Overpass) ================= */
+const HL_TYPES = [
+  [t => t.geological === 'outcrop', 'Aufschluss', 'A', '#0e6a6a', 'Stelle, an der das Gestein offen zu sehen ist, natürlich oder durch Abbau oder Bau angeschnitten.'],
+  [t => t.geological === 'palaeontological_site', 'Fossilfundstelle', 'F', '#7d3c98', 'Ort, an dem Fossilien gefunden wurden. Sammeln ist oft verboten oder genehmigungspflichtig.'],
+  [t => t.geological === 'glacial_erratic', 'Findling', 'E', '#566573', 'Großer Gesteinsblock, den Gletscher der Eiszeiten weit transportiert haben.'],
+  [t => /volcan/.test(t.geological || '') || t.natural === 'volcano', 'Vulkanform', 'V', '#b03a2e', 'Vulkan, Krater oder Maar: Spur früheren Vulkanismus.'],
+  [t => t.geological === 'moraine', 'Moräne', 'M', '#2471a3', 'Vom Gletscher abgelagerter Schuttwall.'],
+  [t => t.natural === 'cave_entrance', 'Höhle', 'H', '#34495e', 'Eingang einer Höhle, in Kalkgebieten meist durch Lösung des Gesteins entstanden. Viele Höhlen sind zum Schutz von Fledermäusen gesperrt.'],
+  [t => t.natural === 'sinkhole', 'Doline', 'D', '#7d6608', 'Trichterförmige Senke über gelöstem Gestein (Karst).'],
+  [t => t.natural === 'arch', 'Felsentor', 'T', '#6e2c00', 'Durch Verwitterung entstandene Öffnung in einem Felsen.'],
+  [t => t.natural === 'stone', 'Großer Stein', 'E', '#566573', 'Auffälliger Einzelstein, oft ein eiszeitlicher Findling.'],
+  [t => t.natural === 'rock' || t.natural === 'cliff', 'Fels', 'R', '#717d7e', 'Freistehender Fels oder Felswand, an der das Gestein sichtbar ist.'],
+  [t => t.landuse === 'quarry', 'Steinbruch oder Grube', 'S', '#ca6f1e', 'Abbaustelle für Gestein, Kies oder Ton. Betreten meist verboten.'],
+  [t => /^mine/.test(t.historic || ''), 'Historischer Bergbau', 'B', '#5d4037', 'Ehemaliger Stollen, Schacht oder Bergwerk. Nicht betreten.'],
+  [t => t.board_type === 'geology', 'Geologie-Infotafel', 'i', '#117a65', 'Infotafel mit Erklärungen zur Geologie vor Ort.'],
+  [t => !!t.geological, 'Geologische Besonderheit', 'G', '#0e6a6a', 'Von OpenStreetMap als geologisch bemerkenswert markierter Ort.']
+];
+const hlType = tags => HL_TYPES.find(x => x[0](tags)) || null;
+const hlCache = {};
+async function loadHighlights(ll) {
+  const dLat = 0.05, dLon = 0.075;
+  const ck = (Math.round(ll.lat * 20) / 20) + ',' + (Math.round(ll.lon * 20) / 20);
+  S.hlError = null;
+  if (hlCache[ck]) { setHighlights(hlCache[ck], ll); return; }
+  const s = (ll.lat - dLat).toFixed(4), n = (ll.lat + dLat).toFixed(4), w = (ll.lon - dLon).toFixed(4), e = (ll.lon + dLon).toFixed(4);
+  const q = '[out:json][timeout:40][bbox:' + [s, w, n, e].join(',') + '];(' +
+    'node["geological"];way["geological"];node["natural"~"^(cave_entrance|rock|stone|arch|sinkhole|volcano)$"];way["natural"~"^(cliff|arch)$"];' +
+    'way["landuse"="quarry"];node["landuse"="quarry"];node["historic"~"^(mine|mine_shaft|mine_adit)$"];way["historic"="mine"];node["board_type"="geology"];' +
+    ');out center tags 250;';
+  S.hlLoading = true; renderPanel();
+  const id = ++hlReq;
+  try {
+    const res = await fetchT('https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(q), 60000);
+    if (!res.ok) throw new HttpError(res.status);
+    const j = await res.json();
+    if (id !== hlReq) return;
+    const items = (j.elements || []).map(el => {
+      const tags = el.tags || {}, t = hlType(tags);
+      const lat = el.lat != null ? el.lat : (el.center && el.center.lat), lon = el.lon != null ? el.lon : (el.center && el.center.lon);
+      if (!t || lat == null) return null;
+      return { id: el.type + '/' + el.id, name: clean(tags.name) || null, type: t, tags, ll: { lat, lon } };
+    }).filter(Boolean);
+    hlCache[ck] = items;
+    setHighlights(items, ll);
+  } catch (e) {
+    if (id !== hlReq) return;
+    S.hlError = 'Die Highlights sind gerade nicht erreichbar (' + errMsg(e) + '). Der Dienst von OpenStreetMap ist manchmal überlastet.';
+    S.hl = []; renderHlMarkers(); renderPanel();
+  } finally { if (id === hlReq) { S.hlLoading = false; renderPanel(); } }
+}
+let hlReq = 0;
+function setHighlights(items, ll) {
+  items.forEach(h => { h.dist = distance(ll, h.ll); });
+  items.sort((a, b) => (b.name ? 1 : 0) - (a.name ? 1 : 0) || a.dist - b.dist);
+  S.hl = items.slice(0, 80);
+  renderHlMarkers(); renderPanel();
+}
+function renderHlMarkers() {
+  map.clearMarkers('hl:');
+  if (!S.showHl || !S.hl) return;
+  S.hl.forEach(h => {
+    map.setMarker('hl:' + h.id, h.ll, 'hl' + (S.hlSel === h.id ? ' sel' : ''),
+      '<span style="background:' + h.type[3] + '" title="' + esc(h.name || h.type[1]) + '">' + esc(h.type[2]) + '</span>',
+      () => { S.hlSel = h.id; S.tab = 'hl'; openPanel(true); renderHlMarkers(); renderPanel(); });
+  });
+}
 
 /* ================= Standort ================= */
 let watchId = null;
@@ -955,9 +1377,8 @@ function onPos(p) {
   S.geo = 'on';
   S.pos = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy };
   map.setMarker('me', S.pos, 'me');
-  if (!S.centeredOnce) { S.centeredOnce = true; map.setView(S.pos, Math.max(map.zoom, 11)); }
-  handlePos();
-  render();
+  if (!S.centeredOnce) { S.centeredOnce = true; map.setView(S.pos, Math.max(map.zoom, 12)); }
+  handlePos(); render();
 }
 function onPosErr(err) {
   if (err && err.code === 1) {
@@ -979,108 +1400,114 @@ function handlePos() {
 function refreshHere() {
   if (!S.pos) { startGeo(); return; }
   S.source = 'gps';
-  run(S.pos, S.pos);
+  run(S.pos, S.pos, null);
 }
-function explore(ll, name) {
-  S.source = 'pin'; S.moved = 0;
-  map.setMarker('pulse', ll, 'pulse');
-  setTimeout(() => map.setMarker('pulse', null), 700);
+/* Ort abfragen: zeigt sofort, was die geladenen Kartendaten wissen, und holt dann die Details */
+function selectPoint(ll, name, keepSource) {
+  if (!keepSource) S.source = 'pin';
+  S.moved = 0;
+  const bu = unitAt(ll, 'base');
+  S.focus = { ll, name: name || null, unitId: bu ? bu.id : null };
+  map.setMarker('pulse', ll, 'pulse'); setTimeout(() => map.setMarker('pulse', null), 700);
+  S.tab = 'hier'; S.hlSel = null; openPanel(true);
+  drawGeo();
   run(ll, null, name);
+  loadHighlights(ll);
 }
 async function run(ll, ref, name) {
   const id = ++S.reqId;
   S.loading = true;
-  if (ref) { S.lastQuery = { lat: ref.lat, lon: ref.lon }; S.moved = 0; }
+  if (ref) { S.lastQuery = { lat: ref.lat, lon: ref.lon }; S.moved = 0; S.focus = { ll: ref, name: null, unitId: (unitAt(ref, 'base') || {}).id || null }; }
   render();
   const r = await lookup(ll, name);
-  if (id !== S.reqId) return;          // eine neuere Abfrage läuft schon
+  if (id !== S.reqId) return;
   if (!r.failed || !S.result) {
     S.result = r; S.fromCache = false;
-    if (!r.failed) store.set('geo.result.v2', r);
+    if (!r.failed) store.set('geo.result.v3', r);
   } else {
     S.result = Object.assign({}, S.result, { notes: ['Neue Abfrage fehlgeschlagen. Angezeigt wird die letzte erfolgreiche Abfrage.'].concat(r.notes) });
   }
-  if (r.failed && ref) S.lastQuery = null;   // beim nächsten Standort erneut versuchen
+  if (r.failed && ref) S.lastQuery = null;
   S.loading = false;
+  if (ref && !S.hl) loadHighlights(ref);
   updateSelection();
   render();
 }
 
-/* ================= Darstellung: Karte ================= */
+/* ================= Karte einrichten ================= */
 const map = new SlippyMap($('#map'));
-map.addLayer('osm', osmTiles, { maxZoom: 19 });
-/* Ab Zoom 10: Die BGR rendert große Ausschnitte sehr langsam (Messung 10.11.2026: z8 ≈ 14 s, z10 ≈ 0,8 s je Kachel),
-   und langsame Kacheln belegen die Browserverbindungen, die die Abfragen brauchen. */
-const GEO_MIN_ZOOM = 10;
-map.addLayer('geo', bgrTiles(BGR.ageBase), { opacity: 0.68, minZoom: GEO_MIN_ZOOM, maxZoom: 12 });
+map.addLayer('base', BASEMAPS[S.base].url, { maxZoom: BASEMAPS[S.base].max });
 map.onRender = () => {
-  const off = document.querySelector('input[name=mode]:checked').value === 'off';
-  $('#zoomhint').hidden = off || map.zoom >= GEO_MIN_ZOOM;
+  drawGeo();
+  const off = S.mode === 'off';
+  $('#zoomhint').hidden = off || map.zoom >= VEC_MIN_ZOOM;
+  clearTimeout(map._cellT); map._cellT = setTimeout(requestCells, 150);
 };
-map.onLongPress = ll => explore(ll);
-$('#zoomhint').addEventListener('click', () => { const e = map.el; map.zoomAround(e.clientWidth / 2, e.clientHeight / 2, GEO_MIN_ZOOM); });
-map.render();
-document.querySelectorAll('input[name=mode]').forEach(r => r.addEventListener('change', () => {
-  const v = document.querySelector('input[name=mode]:checked').value;
-  map.setLayerUrl('geo', v === 'off' ? null : bgrTiles(v === 'age' ? BGR.ageBase : BGR.base));
-}));
+map.onTap = ll => { closeOverlays(); selectPoint(ll, null); };
+map.onLongPress = ll => { closeOverlays(); selectPoint(ll, null); };
+function renderLoadHint() {
+  const loading = S.mode !== 'off' && map.zoom >= VEC_MIN_ZOOM && (GD.busy > 0 || GD.queue.length > 0);
+  $('#loadhint').hidden = !loading;
+}
+function renderAttrib() {
+  $('#attrib').textContent = BASEMAPS[S.base].attr + (S.mode !== 'off' ? ' · Geologie: GÜK250 © BGR' : '') + (S.hl && S.hl.length ? ' · Highlights: © OpenStreetMap-Mitwirkende' : '');
+}
+
+/* Ebenen-Menü */
+function closeOverlays() { $('#layers').hidden = true; $('#layers-btn').setAttribute('aria-expanded', 'false'); $('#results').hidden = true; }
+$('#layers-btn').addEventListener('click', () => {
+  const open = $('#layers').hidden;
+  closeOverlays();
+  $('#layers').hidden = !open; $('#layers-btn').setAttribute('aria-expanded', String(open));
+});
+document.querySelectorAll('input[name=base]').forEach(r => { r.checked = r.value === S.base; r.addEventListener('change', () => {
+  S.base = r.value; store.set('geo.base', S.base); map.setLayer('base', BASEMAPS[S.base].url, BASEMAPS[S.base].max); renderAttrib();
+}); });
+document.querySelectorAll('input[name=mode]').forEach(r => { r.checked = r.value === S.mode; r.addEventListener('change', () => {
+  S.mode = r.value; store.set('geo.mode', S.mode); S.legendFocus = null; map.render(); renderPanel(); renderAttrib();
+}); });
+$('#opacity').value = String(Math.round(S.opacity * 100));
+$('#opacity').addEventListener('input', e => { S.opacity = Number(e.target.value) / 100; store.set('geo.opacity', S.opacity); drawGeo(); });
+[['#show-faults', 'showFaults', 'geo.faults'], ['#show-ice', 'showIce', 'geo.ice'], ['#show-hl', 'showHl', 'geo.hl']].forEach(([sel, prop, k]) => {
+  $(sel).checked = S[prop];
+  $(sel).addEventListener('change', e => { S[prop] = e.target.checked; store.set(k, S[prop]); drawGeo(); renderHlMarkers(); });
+});
 $('#zoom-in').addEventListener('click', () => { const e = map.el; map.zoomAround(e.clientWidth / 2, e.clientHeight / 2, Math.round(map.zoom) + 1); });
 $('#zoom-out').addEventListener('click', () => { const e = map.el; map.zoomAround(e.clientWidth / 2, e.clientHeight / 2, Math.round(map.zoom) - 1); });
+$('#zoomhint').addEventListener('click', () => { const e = map.el; map.zoomAround(e.clientWidth / 2, e.clientHeight / 2, Math.max(VEC_MIN_ZOOM, 11)); });
 $('#locate').addEventListener('click', () => {
-  if (S.pos) { map.setView(S.pos, Math.max(map.zoom, 11)); refreshHere(); }
-  else startGeo();
+  closeOverlays();
+  if (S.pos) { map.setView(S.pos, Math.max(map.zoom, 12)); refreshHere(); } else startGeo();
 });
 $('#banner-btn').addEventListener('click', refreshHere);
 document.addEventListener('gesturestart', e => e.preventDefault());
 
-function periodChips(range) {
-  if (!range) return '';
-  let h = '';
-  for (let i = range[0]; i <= range[1]; i++) {
-    const p = PERIODS[i];
-    h += '<span class="chip"><span class="sw" style="background:' + p.color + '"></span>' + esc(p.name) + '</span>';
-  }
-  return '<div class="chips">' + h + '</div>';
-}
-function sourceLabel() {
-  if (S.result && S.result.name) return S.result.name;
-  return S.fromCache ? 'Letzte Abfrage' : (S.source === 'gps' ? 'Dein Standort' : 'Gewählter Punkt');
-}
-const matLabels = u => listLabel(u.material, MATERIALS);
-
-/* Was ohne Standort geht: Ort suchen, Beispielort wählen, Kartenmitte abfragen. */
+/* ================= Suche mit Beispielorten ================= */
 const EXAMPLES = [
-  ['Laacher See', 50.430, 7.255], ['Lüneburger Heide', 53.170, 9.950], ['Grube Messel', 49.917, 8.756],
-  ['Bastei', 50.962, 14.073], ['Solnhofen', 48.905, 10.955], ['Holzmaden', 48.633, 9.525],
-  ['Zugspitze', 47.421, 10.985], ['Pfälzerwald', 49.250, 7.850], ['Muttental (Ruhr)', 51.427, 7.320],
-  ['Brocken', 51.799, 10.616], ['Bundenbach', 49.842, 7.378]
+  ['Laacher See', 50.430, 7.255, 'Vulkan der Eifel, Quartär'], ['Lüneburger Heide', 53.170, 9.950, 'Eiszeitlicher Sand, Saale-Kaltzeit'],
+  ['Grube Messel', 49.917, 8.756, 'UNESCO-Welterbe, Paläogen'], ['Bastei', 50.962, 14.073, 'Elbsandstein, Kreide'],
+  ['Solnhofen', 48.905, 10.955, 'Plattenkalk, Jura'], ['Holzmaden', 48.633, 9.525, 'Posidonienschiefer, Jura'],
+  ['Zugspitze', 47.421, 10.985, 'Wettersteinkalk, Trias'], ['Pfälzerwald', 49.250, 7.850, 'Buntsandstein, Trias'],
+  ['Muttental (Ruhr)', 51.427, 7.320, 'Steinkohle, Karbon'], ['Brocken', 51.799, 10.616, 'Granit, Karbon'],
+  ['Bundenbach', 49.842, 7.378, 'Hunsrückschiefer, Devon'], ['Nördlinger Ries', 48.850, 10.500, 'Meteoritenkrater, Neogen']
 ];
-function goTo(ll, name) {
-  map.setView(ll, Math.max(map.zoom, 11));
-  explore(ll, name);
+function goTo(ll, name) { closeOverlays(); $('#search').blur(); map.setView(ll, Math.max(map.zoom, 12)); selectPoint(ll, name); }
+function showExamples() {
+  const list = $('#results');
+  list.innerHTML = '<li class="grp">Beispielorte</li>' + EXAMPLES.map((e, i) => '<li><button type="button" data-ex="' + i + '">' + esc(e[0]) + '<small>' + esc(e[3]) + '</small></button></li>').join('');
+  list.hidden = false;
+  list.onclick = ev => { const b = ev.target.closest('button[data-ex]'); if (!b) return; const e = EXAMPLES[Number(b.dataset.ex)]; goTo({ lat: e[1], lon: e[2] }, e[0]); };
 }
-(function renderExamples() {
-  let h = '<span class="lbl">Beispiele</span>';
-  EXAMPLES.forEach((e, i) => { h += '<button type="button" data-ex="' + i + '">' + esc(e[0]) + '</button>'; });
-  $('#examples').innerHTML = h;
-  $('#examples').addEventListener('click', ev => {
-    const b = ev.target.closest('button[data-ex]'); if (!b) return;
-    const e = EXAMPLES[Number(b.dataset.ex)];
-    goTo({ lat: e[1], lon: e[2] }, e[0]);
-  });
-})();
-function centerQuery() { const c = map.center; explore({ lat: c.lat, lon: c.lon }, null); }
-
 const COORD_RE = /^\s*(-?\d{1,2}(?:[.,]\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:[.,]\d+)?)\s*$/;
 let searchSeq = 0;
 async function runSearch(q) {
   q = q.trim();
   const list = $('#results');
-  if (!q) { list.hidden = true; return; }
+  if (!q) { showExamples(); return; }
   const m = q.match(COORD_RE);
   if (m) {
     const lat = parseFloat(m[1].replace(',', '.')), lon = parseFloat(m[2].replace(',', '.'));
-    if (lat >= 45 && lat <= 56 && lon >= 4 && lon <= 17) { list.hidden = true; goTo({ lat, lon }, null); return; }
+    if (lat >= 45 && lat <= 56 && lon >= 4 && lon <= 17) { goTo({ lat, lon }, null); return; }
   }
   const id = ++searchSeq;
   list.hidden = false; list.innerHTML = '<li class="muted">Suche …</li>';
@@ -1091,12 +1518,11 @@ async function runSearch(q) {
     const hits = await res.json();
     if (id !== searchSeq) return;
     if (!hits.length) { list.innerHTML = '<li class="muted">Nichts gefunden. Probier einen Ortsnamen oder Koordinaten wie 48.9, 10.96.</li>'; return; }
-    list.innerHTML = hits.map((h, i) => '<li><button type="button" data-i="' + i + '">' + esc(h.display_name) + '</button></li>').join('') +
+    list.innerHTML = hits.map((h, i) => '<li><button type="button" data-i="' + i + '">' + esc(String(h.display_name).split(',')[0]) + '<small>' + esc(String(h.display_name).split(',').slice(1, 3).join(',')) + '</small></button></li>').join('') +
       '<li class="muted">Suche: Nominatim · © OpenStreetMap-Mitwirkende</li>';
     list.onclick = ev => {
       const b = ev.target.closest('button[data-i]'); if (!b) return;
       const h = hits[Number(b.dataset.i)];
-      list.hidden = true; $('#search').blur();
       goTo({ lat: parseFloat(h.lat), lon: parseFloat(h.lon) }, String(h.display_name).split(',')[0]);
     };
   } catch (e) {
@@ -1105,9 +1531,14 @@ async function runSearch(q) {
   }
 }
 $('#search-form').addEventListener('submit', ev => { ev.preventDefault(); runSearch($('#search').value); });
-$('#search').addEventListener('input', () => { if (!$('#search').value.trim()) $('#results').hidden = true; });
+$('#search').addEventListener('focus', () => { $('#layers').hidden = true; $('#layers-btn').setAttribute('aria-expanded', 'false'); if (!$('#search').value.trim()) showExamples(); });
+$('#search').addEventListener('input', () => { if (!$('#search').value.trim()) showExamples(); });
+document.addEventListener('pointerdown', ev => {
+  if (!ev.target.closest('#results') && !ev.target.closest('#search-form')) $('#results').hidden = true;
+  if (!ev.target.closest('#layers') && !ev.target.closest('#layers-btn')) { $('#layers').hidden = true; $('#layers-btn').setAttribute('aria-expanded', 'false'); }
+});
 
-/* Verbindungstest: lädt je eine Kachel von OpenStreetMap und von der BGR. */
+/* ================= Verbindungstest ================= */
 function probeImage(src) {
   return new Promise(ok => {
     const i = new Image(); const t = setTimeout(() => ok(false), 9000);
@@ -1115,13 +1546,9 @@ function probeImage(src) {
     i.src = src;
   });
 }
-/* BGR: Dienstbeschreibung statt Kachel; eine Deutschland-Kachel braucht dort bis zu 20 s, die Beschreibung unter 1 s. */
-function probeBgr() {
-  return getJSON(BGR.guek, { f: 'json' }).then(j => !!(j && (j.layers || j.mapName || j.currentVersion))).catch(() => false);
-}
+function probeBgr() { return getJSON(G250, { f: 'json' }).then(j => !!(j && (j.layers || j.mapName || j.currentVersion))).catch(() => false); }
 function probeNetwork() {
-  return Promise.all([probeImage(osmTiles(5, 16, 10)), probeBgr()])
-    .then(([osm, bgr]) => { S.net = { osm, bgr }; render(); return S.net; });
+  return Promise.all([probeImage(BASEMAPS.osm.url(5, 16, 10)), probeBgr()]).then(([osm, bgr]) => { S.net = { osm, bgr }; render(); return S.net; });
 }
 function contextHint() {
   if (location.protocol === 'file:') return 'Du hast die Datei direkt geöffnet. So sperren Browser Standort und oft auch Kartenabrufe. Öffne die App über ihre Webadresse (https://…).';
@@ -1139,116 +1566,229 @@ function renderNetWarn() {
   $('#retry-net').addEventListener('click', () => { el.innerHTML = '<div class="loading"><span class="spin"></span><span>Prüfe Verbindung …</span></div>'; probeNetwork(); });
 }
 
+/* ================= Infofeld ================= */
+function openPanel(open) { S.panelOpen = open; $('#panel').dataset.open = String(open); $('#panel-toggle').setAttribute('aria-expanded', String(open)); }
+$('#panel-toggle').addEventListener('click', () => { openPanel(!S.panelOpen); renderPanel(); });
+$('#psum').addEventListener('click', () => { openPanel(true); renderPanel(); });
+document.querySelectorAll('.ptab').forEach(b => b.addEventListener('click', () => {
+  S.tab = b.dataset.tab; openPanel(true);
+  if (S.tab === 'hl' && !S.hl && !S.hlLoading) loadHighlights(S.focus ? S.focus.ll : map.center);
+  renderPanel();
+}));
+function periodChips(range) {
+  if (!range) return '';
+  let h = '';
+  for (let i = range[0]; i <= range[1]; i++) h += '<span class="chip"><span class="sw" style="background:' + PERIODS[i].color + '"></span>' + esc(PERIODS[i].name) + '</span>';
+  return '<div class="chips">' + h + '</div>';
+}
+function sourceLabel() {
+  if (S.focus && S.focus.name) return S.focus.name;
+  if (S.result && S.result.name) return S.result.name;
+  return S.fromCache ? 'Letzte Abfrage' : (S.source === 'gps' ? 'Dein Standort' : 'Gewählter Punkt');
+}
+/* Die aktuell gezeigte Einheit: Ergebnis der Abfrage, sonst lokale Kartendaten */
+function currentUnits() {
+  const r = S.result;
+  const fresh = r && S.focus && Math.abs(r.lat - round3(S.focus.ll.lat)) < 0.0006 && Math.abs(r.lon - round3(S.focus.ll.lon)) < 0.0006;
+  if (r && (fresh || !S.focus)) return { base: r.base, overlay: r.overlay, r, complete: true };
+  if (S.focus) {
+    const u = S.focus.unitId ? GD.units.get(S.focus.unitId) : null;
+    if (u) {
+      const p = u.props;
+      const unit = makeUnit('base', p, { klartext: GD.petro.get(u.oid) }, null);
+      return { base: unit, overlay: null, r: null, complete: false };
+    }
+  }
+  return { base: null, overlay: null, r: null, complete: false };
+}
+function unitHTML(u, title) {
+  if (!u) return '';
+  const a = u.age;
+  const per = a.range ? PERIODS[a.range[1]] : null;
+  let h = '<section><h3>' + esc(title) + '</h3>';
+  h += '<p class="lead"><b>' + esc(u.petro || 'Gestein nicht angegeben') + '</b></p>';
+  h += '<dl class="kv"><dt>Alter</dt><dd>' + esc(a.label) + (a.span ? '<br><small class="note">' + esc(spanNote(a)) + '</small>' : '') + '</dd>';
+  if (u.strat.length) h += '<dt>Schichtname</dt><dd>' + esc(u.strat.join(', ')) + '</dd>';
+  if (u.genese) h += '<dt>Entstehung</dt><dd>' + esc(u.genese) + '</dd>';
+  if (u.raum) h += '<dt>Ablagerungsraum</dt><dd>' + esc(u.raum) + '</dd>';
+  if (u.milieu) h += '<dt>Milieu</dt><dd>' + esc(u.milieu) + '</dd>';
+  if (u.thick) h += '<dt>Mächtigkeit</dt><dd>' + esc(u.thick) + '</dd>';
+  if (u.local) h += '<dt>Gebiet</dt><dd>' + esc(u.local) + '</dd>';
+  h += '</dl>' + periodChips(a.range) + '</section>';
+  h += explainHTML(explain([u.petro, u.strat.join(' '), u.genese, u.raum], 4));
+  if (per && u.kind === 'base') {
+    const c = CARDS[per.id];
+    if (c) h += '<div class="damals"><h3>Damals hier: ' + esc(per.name) + '</h3><p><b>' + esc(c.h) + '.</b> ' + esc(c.c[0][0]) + '</p>' +
+      '<div><a class="btn" href="#zeitreise">Zur Zeitreise</a></div></div>';
+  }
+  return h;
+}
+function faultText(n) {
+  const km = FAULT_RADIUS / 1000;
+  if (n === null || n === undefined) return 'Keine Angabe.';
+  if (n === 0) return 'Im Umkreis von ' + km + ' km sind in der GÜK250 keine tektonischen Linien verzeichnet.';
+  return 'Im Umkreis von ' + km + ' km verzeichnet die GÜK250 ' + n + (n === 1 ? ' tektonische Linie' : ' tektonische Linien') + ' (Störungen, Überschiebungen, tektonische Grenzen). Auf der Karte rot.';
+}
+function soilHTML(so) {
+  if (!so || !so.text) return '<p>Keine Bodeneinheit gefunden.</p>';
+  return '<p>' + esc(so.text) + '</p>' + (so.hint ? '<p class="note">' + esc(so.hint) + '</p>' : '') +
+    '<p class="note">BÜK200' + (so.sheet ? ', Kartenblatt ' + esc(so.sheet) : '') + (so.approx ? ' (Nachbarfläche)' : '') + '</p>' +
+    (so.profile ? '<p><a href="' + esc(so.profile) + '" target="_blank" rel="noopener">Typisches Bodenprofil bei der BGR</a></p>' : '');
+}
 function geoHelp() {
-  if (S.geo === 'insecure') return '<h2 style="margin-top:0">Standort nur über https</h2><p class="note">Browser geben den Standort nur an Seiten mit sicherer Adresse (https://) heraus. ' + esc(contextHint()) + '</p>';
-  if (S.geo === 'denied') return '<h2 style="margin-top:0">Standortzugriff ist gesperrt</h2>' +
-    '<p class="note">So gibst du ihn auf dem iPhone frei:</p><ol class="help">' +
+  if (S.geo === 'insecure') return '<p class="note">Browser geben den Standort nur an Seiten mit sicherer Adresse (https://) heraus. ' + esc(contextHint()) + '</p>';
+  if (S.geo === 'denied') return '<p><b>Standortzugriff ist gesperrt.</b> So gibst du ihn auf dem iPhone frei:</p><ol class="help">' +
     '<li>Einstellungen → Datenschutz &amp; Sicherheit → Ortungsdienste: eingeschaltet.</li>' +
     '<li>Dort „Safari-Websites“ auf „Beim Verwenden der App“ stellen.</li>' +
     '<li>In Safari links in der Adresszeile auf „aA“ (bzw. das Seitenmenü) → Website-Einstellungen → Standort: „Fragen“ oder „Erlauben“.</li>' +
-    '<li>Seite neu laden und „Standort verwenden“ tippen.</li></ol>' +
-    '<p class="note" style="margin-top:8px">Bis dahin: oben einen Ort suchen, einen Beispielort wählen oder die Kartenmitte abfragen.</p>';
-  if (S.geo === 'unavailable') return '<h2 style="margin-top:0">Kein Standort verfügbar</h2><p class="note">Das Gerät hat keinen Standort geliefert. Such oben einen Ort, wähl einen Beispielort oder frag die Kartenmitte ab.</p>';
+    '<li>Seite neu laden und „Standort verwenden“ tippen.</li></ol>';
+  if (S.geo === 'unavailable') return '<p class="note">Das Gerät hat keinen Standort geliefert.</p>';
+  if (S.geo === 'asking') return '<div class="loading"><span class="spin"></span><span>Warte auf deinen Standort …</span></div>';
   return '';
 }
-
-function renderSummary() {
-  const el = $('#summary');
-  let h = '';
-  const actions = '<div class="row">' +
-    (S.geo === 'idle' ? '<button class="btn primary" type="button" id="start-geo">Standort verwenden</button>' : '') +
-    '<button class="btn" type="button" id="center-q">Kartenmitte abfragen</button></div>';
-  if (S.loading) {
-    h = '<div class="loading"><span class="spin" aria-hidden="true"></span><span>Frage die Karten der BGR ab …</span></div>';
-  } else if (S.result) {
-    const r = S.result, b = r.base, a = unitAge(b);
-    h = '<p class="eyebrow">' + esc(sourceLabel()) + '</p>';
-    if (b) {
-      const mats = matLabels(b);
-      h += '<h2>' + esc(mats.length ? mats.join(', ') : 'Gestein unbekannt') + '</h2><p class="age">' + esc(a.label) + '</p>' + periodChips(a.range);
-    } else {
-      h += '<h2>Keine Karteneinheit gefunden</h2>';
-      if (r.notes.length) h += '<p class="note">' + esc(r.notes[0]) + '</p>';
-    }
-    h += '<div class="row"><a class="btn" href="#standort">Details</a><a class="btn primary" href="#zeitreise">Zeitreise</a>' +
-      '<button class="btn" type="button" id="center-q">Kartenmitte abfragen</button></div>';
-  } else if (S.geo === 'asking') {
-    h = '<div class="loading"><span class="spin" aria-hidden="true"></span><span>Warte auf deinen Standort …</span></div>' +
-      '<p class="note" style="margin-top:8px">Erscheint keine Abfrage, ist der Standort in Safari gesperrt. Ohne Standort: Ort suchen, Beispielort wählen oder Kartenmitte abfragen.</p>' + actions;
-  } else if (S.geo === 'idle') {
-    h = '<h2 style="margin-top:0">Was liegt unter dir?</h2><p class="note">Nutze deinen Standort, such oben einen Ort, wähl einen Beispielort oder schieb die Karte und frag die Mitte ab.</p>' + actions;
-  } else {
-    h = geoHelp() + actions;
+function renderHier() {
+  const cu = currentUnits();
+  if (!S.focus && !cu.r) {
+    return '<div class="info"><p class="lead"><b>Tippe auf die Karte</b>, um zu sehen, welches Gestein dort liegt, wie alt es ist und wie es entstanden ist.</p>' +
+      geoHelp() + '<div class="row">' + (S.geo === 'idle' ? '<button class="btn primary" type="button" data-act="geo">Standort verwenden</button>' : '') +
+      '<button class="btn" type="button" data-act="examples">Beispielorte</button></div></div>';
   }
-  h += '<p class="foot">Lange drücken fragt ebenfalls einen Ort ab. Geologie: GÜK250 1:250.000 © BGR · Grundkarte © OpenStreetMap-Mitwirkende</p>';
-  el.innerHTML = h;
-  const sg = $('#start-geo'); if (sg) sg.addEventListener('click', startGeo);
-  const cq = $('#center-q'); if (cq) cq.addEventListener('click', centerQuery);
+  let h = '<div class="info"><p class="eyebrow">' + esc(sourceLabel()) + (S.focus ? ' · ' + S.focus.ll.lat.toFixed(3) + '° N, ' + S.focus.ll.lon.toFixed(3) + '° O' : '') + '</p>';
+  if (cu.base) h += unitHTML(cu.base, 'Gestein an der Oberfläche');
+  else if (S.loading) h += '<div class="loading"><span class="spin"></span><span>Frage die Karten der BGR ab …</span></div>';
+  else h += '<p class="lead"><b>Keine Karteneinheit.</b> ' + esc(cu.r && cu.r.notes[0] ? cu.r.notes[0] : 'Für diesen Punkt liefert die GÜK250 nichts.') + '</p>';
+  if (cu.overlay) h += unitHTML(cu.overlay, 'Darüber: Deckschicht');
+  if (cu.complete && cu.r) {
+    h += '<section><h3>Boden</h3>' + soilHTML(cu.r.soil) + '</section>';
+    h += '<section><h3>Tektonik</h3><p>' + esc(faultText(cu.r.faults)) + '</p></section>';
+    if (cu.r.notes.length && cu.base) h += '<p class="note">' + esc(cu.r.notes.join(' ')) + '</p>';
+  } else if (S.loading) {
+    h += '<div class="loading"><span class="spin"></span><span>Lade Boden und Details …</span></div>';
+  }
+  h += '<p class="note">Kartenmaßstab 1:250.000: Die Angaben gelten für ein Gebiet von mehreren hundert Metern.</p>';
+  h += '<div class="row"><a class="btn" href="#standort">Alles zu diesem Punkt</a><button class="btn" type="button" data-act="tab-hl">Highlights in der Nähe</button></div></div>';
+  return h;
 }
+function renderHl() {
+  let h = '';
+  const sel = S.hl && S.hlSel ? S.hl.find(x => x.id === S.hlSel) : null;
+  if (sel) {
+    const u = unitAt(sel.ll, 'base');
+    const petro = u ? GD.petro.get(u.oid) : null;
+    const wiki = sel.tags.wikipedia && /^de:/.test(sel.tags.wikipedia) ? 'https://de.wikipedia.org/wiki/' + encodeURIComponent(sel.tags.wikipedia.slice(3).replace(/ /g, '_')) : null;
+    h += '<div class="info" style="margin-bottom:14px"><p class="eyebrow">' + esc(sel.type[1]) + ' · ' + fmtDist(sel.dist) + ' entfernt</p>' +
+      '<h2>' + esc(sel.name || sel.type[1]) + '</h2><p>' + esc(sel.type[4]) + '</p>' +
+      (u ? '<p class="note">Gestein laut GÜK250: ' + esc(petro || '–') + ', ' + esc(u.age.label) + '</p>' : '') +
+      (sel.tags.ele ? '<p class="note">Höhe: ' + esc(sel.tags.ele) + ' m</p>' : '') +
+      (sel.tags.description ? '<p class="note">' + esc(sel.tags.description) + '</p>' : '') +
+      '<div class="row">' + (wiki ? '<a class="btn" href="' + esc(wiki) + '" target="_blank" rel="noopener">Wikipedia</a>' : '') +
+      '<a class="btn" href="https://www.openstreetmap.org/' + esc(sel.id) + '" target="_blank" rel="noopener">OpenStreetMap</a>' +
+      '<button class="btn" type="button" data-act="hl-query">Geologie hier</button></div></div>';
+  }
+  if (S.hlLoading) h += '<div class="loading"><span class="spin"></span><span>Suche geologische Orte in der Umgebung (kann bis zu einer halben Minute dauern) …</span></div>';
+  else if (S.hlError) h += '<p class="note">' + esc(S.hlError) + '</p><div class="row"><button class="btn" type="button" data-act="hl-retry">Erneut versuchen</button></div>';
+  else if (!S.hl) h += '<p class="note">Tippe auf die Karte oder frag einen Ort ab, um geologische Orte in der Umgebung zu finden.</p>';
+  else if (!S.hl.length) h += '<p class="note">In etwa 5 km Umkreis sind bei OpenStreetMap keine Höhlen, Aufschlüsse, Steinbrüche oder ähnliche Orte eingetragen.</p>';
+  else {
+    h += '<p class="note" style="margin-bottom:6px">' + S.hl.length + ' Orte im Umkreis von etwa 5 km, aus OpenStreetMap. Steinbrüche, Bergwerke und viele Höhlen nicht betreten.</p><ul class="hl-list">' +
+      S.hl.map(x => '<li><button type="button" data-hl="' + esc(x.id) + '"><span class="dot" style="background:' + x.type[3] + '">' + esc(x.type[2]) + '</span>' +
+        '<span class="nm"><b>' + esc(x.name || x.type[1]) + '</b><small>' + esc(x.type[1]) + '</small></span><span class="d">' + fmtDist(x.dist) + '</span></button></li>').join('') + '</ul>';
+  }
+  return h;
+}
+function legendItems() {
+  const T = viewTransform(), counts = new Map();
+  if (map.zoom < VEC_MIN_ZOOM) return [];
+  for (const u of GD.units.values()) {
+    if (u.kind !== 'base' || !inBox(u.bbox, T.box)) continue;
+    const k = unitLegendKey(u); if (k === null) continue;
+    counts.set(k, (counts.get(k) || 0) + 1);
+  }
+  const items = [];
+  if (S.mode === 'lith') {
+    LITH.concat([LITH_OTHER]).forEach(L => { if (counts.has(L[0])) items.push({ k: L[0], name: L[1], color: L[2], n: counts.get(L[0]) }); });
+  } else {
+    PERIODS.forEach((p, i) => { if (counts.has(String(i))) items.push({ k: String(i), name: p.name, color: p.color, n: counts.get(String(i)), sub: 'ca. ' + spanText(p.start, p.end) }); });
+  }
+  return items;
+}
+function renderLeg() {
+  if (S.mode === 'off') return '<p class="note">Die Geologie ist ausgeblendet. Schalte sie über das Ebenen-Symbol ein.</p>';
+  if (map.zoom < VEC_MIN_ZOOM) return '<p class="note">Zoom hinein, um die Geologie und ihre Legende zu sehen.</p>';
+  const items = legendItems();
+  let h = '<p class="note" style="margin-bottom:6px">' + (S.mode === 'lith' ? 'Gesteinsgruppen' : 'Erdzeitalter (ICS-Farben)') + ' im Kartenausschnitt. Antippen hebt sie hervor.</p>';
+  if (!items.length) h += '<p class="note">Noch keine Daten geladen.</p>';
+  h += '<ul class="leg-list">' + items.map(it => '<li><button type="button" data-leg="' + esc(it.k) + '" aria-pressed="' + (S.legendFocus === it.k) + '">' +
+    '<span class="sw" style="background:' + it.color + '"></span><span class="nm">' + esc(it.name) + (it.sub ? '<br><small>' + esc(it.sub) + '</small>' : '') + '</span><small>' + it.n + '</small></button></li>').join('') + '</ul>';
+  h += '<div class="leg-lines"><span><i class="hatch" style="height:12px;border:0"></i>Deckschicht (meist dünne Ablagerungen des Quartärs)</span>' +
+    '<span><i style="border-color:#c0392b"></i>Störung oder tektonische Grenze (gestrichelt: vermutet oder bedeckt)</span>' +
+    '<span><i style="border-color:#1f6fd1;border-top-style:dashed"></i>Eisrandlage (Ausdehnung früherer Gletscher)</span></div>';
+  return h;
+}
+function renderLegendIfOpen() { if (S.panelOpen && S.tab === 'leg') renderPanel(); }
+function renderPanel() {
+  document.querySelectorAll('.ptab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === S.tab)));
+  $('#hl-count').textContent = S.hl && S.hl.length ? String(S.hl.length) : '';
+  // eingeklappt: eine Zeile
+  const cu = currentUnits();
+  let t = 'Tippe auf die Karte', s = 'Gestein, Alter und Entstehung an jedem Ort';
+  if (S.loading && !cu.base) { t = 'Frage die Karten der BGR ab …'; s = sourceLabel(); }
+  else if (cu.base) { t = cu.base.petro || 'Gestein'; s = cu.base.age.label + ' · ' + sourceLabel(); }
+  else if (S.focus) { t = 'Keine Karteneinheit'; s = sourceLabel(); }
+  $('#psum').innerHTML = '<p class="t">' + esc(t) + '</p><p class="s">' + esc(s) + '</p>';
+  if (!S.panelOpen) return;
+  const body = $('#pbody');
+  body.innerHTML = S.tab === 'hl' ? renderHl() : S.tab === 'leg' ? renderLeg() : renderHier();
+}
+$('#pbody').addEventListener('click', ev => {
+  const a = ev.target.closest('[data-act]');
+  if (a) {
+    const act = a.dataset.act;
+    if (act === 'geo') startGeo();
+    if (act === 'examples') { $('#search').focus(); showExamples(); }
+    if (act === 'tab-hl') { S.tab = 'hl'; if (!S.hl && !S.hlLoading) loadHighlights(S.focus ? S.focus.ll : map.center); renderPanel(); }
+    if (act === 'hl-retry') { loadHighlights(S.focus ? S.focus.ll : map.center); }
+    if (act === 'hl-query') { const h = S.hl.find(x => x.id === S.hlSel); if (h) { map.setView(h.ll, Math.max(map.zoom, 13)); selectPoint(h.ll, h.name || h.type[1]); } }
+    return;
+  }
+  const hb = ev.target.closest('[data-hl]');
+  if (hb) {
+    S.hlSel = hb.dataset.hl; const h = S.hl.find(x => x.id === S.hlSel);
+    if (h) map.setView(h.ll, Math.max(map.zoom, 13));
+    renderHlMarkers(); renderPanel(); $('#pbody').scrollTop = 0; return;
+  }
+  const lb = ev.target.closest('[data-leg]');
+  if (lb) { S.legendFocus = S.legendFocus === lb.dataset.leg ? null : lb.dataset.leg; drawGeo(); renderPanel(); }
+});
+
 function renderBanner() {
   const show = S.source === 'gps' && !S.auto && !S.loading && !!S.lastQuery && S.moved >= BANNER_THRESHOLD;
   $('#banner').hidden = !show;
   if (show) $('#banner-text').textContent = 'Du hast dich seit der letzten Aktualisierung um ' + fmtDist(S.moved) + ' wegbewegt.';
 }
-function renderMarkers() {
-  map.setMarker('query', S.result ? { lat: S.result.lat, lon: S.result.lon } : null, 'query');
-}
+function renderMarkers() { map.setMarker('query', S.focus ? S.focus.ll : (S.result ? { lat: S.result.lat, lon: S.result.lon } : null), 'query'); }
 
-/* ================= Darstellung: Standort ================= */
-function unitCard(title, u) {
-  const a = unitAge(u);
-  const mats = matLabels(u);
-  let rows = '<dt>Gestein</dt><dd>' + esc(mats.length ? mats.join(', ') : 'unbekannt') + '</dd>';
-  const spanNote = !a.span ? '' : a.coarse === 'grob'
-    ? ' (Zeitraum grob: ca. ' + spanText(a.span.start, a.span.end) + ')'
-    : a.coarse
-      ? ' (Gesamtzeitraum ' + a.coarse + ': ca. ' + spanText(a.span.start, a.span.end) + ')'
-      : ' (ca. ' + spanText(a.span.start, a.span.end) + ')';
-  rows += '<dt>Alter</dt><dd>' + esc(a.label + spanNote) + '</dd>';
-  if (u.process) rows += '<dt>Entstehung</dt><dd>' + esc(listLabel(u.process, PROCESSES).join(', ')) + '</dd>';
-  if (u.env) rows += '<dt>Ablagerungsraum</dt><dd>' + esc(listLabel(u.env, ENVIRONMENTS).join(', ')) + '</dd>';
-  return '<article class="card"><h3>' + esc(title) + '</h3><dl class="kv">' + rows + '</dl>' + periodChips(a.range) + '</article>';
-}
-function faultText(n) {
-  const km = BGR.faultRadius / 1000;
-  if (n === null || n === undefined) return 'Keine Angabe, die Abfrage ist fehlgeschlagen.';
-  if (n === 0) return 'Im Umkreis von ' + km + ' km sind in der GÜK250 keine Störungen verzeichnet.';
-  return 'Im Umkreis von ' + km + ' km verzeichnet die GÜK250 ' + n + (n === 1 ? ' Störungslinie' : ' Störungslinien') + '. Die Linien sind stark generalisiert.';
-}
-function rawBlock(title, u) {
-  if (!u) return '';
-  return title + '\n  material: ' + (u.material.join(', ') || '–') + '\n  olderNamedAge: ' + (u.older || '–') +
-    '\n  youngerNamedAge: ' + (u.younger || '–') + '\n  eventProcess: ' + (u.process || '–') +
-    '\n  eventEnvironment: ' + (u.env || '–') + '\n  inspireId: ' + (u.inspireId || '–') + '\n';
-}
+/* ================= Standort-Seite ================= */
 function renderSite() {
   const el = $('#site'), r = S.result;
   if (!r) {
-    el.innerHTML = '<header class="page-head"><h1>Standort</h1></header><p class="empty">Noch keine Abfrage. Erlaube auf der Karte den Standortzugriff oder drück lange auf einen Ort.</p>';
+    el.innerHTML = '<header class="page-head"><h1>Standort</h1></header><p class="empty">Noch keine Abfrage. Tipp auf der Karte auf einen Ort oder erlaube den Standortzugriff.</p>';
     return;
   }
   const when = new Date(r.at).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
-  let h = '<header class="page-head site-head"><p class="eyebrow">' + esc(sourceLabel()) + '</p><h1>Standort</h1>' +
-    '<span class="coord">' + r.lat.toFixed(3) + '° N, ' + r.lon.toFixed(3) + '° O</span><span class="note">Abgefragt: ' + esc(when) + '</span></header>';
-  h += r.base ? unitCard('Oberfläche (Grundschicht)', r.base)
-    : '<article class="card"><h3>Oberfläche</h3><p>Die GÜK250 liefert für diesen Punkt keine Einheit.</p></article>';
-  if (r.overlay) h += unitCard('Deckschicht, meist dünne Ablagerungen des Quartärs', r.overlay);
-  h += '<article class="card"><h3>Störungen</h3><p>' + esc(faultText(r.faults)) + '</p></article>';
-  const so = r.soil;
-  h += '<article class="card"><h3>Boden</h3>' + (so && so.text
-    ? '<p>' + esc(so.text) + '</p>' +
-      (so.hint ? '<p class="note">' + esc(so.hint) + '</p>' : '') +
-      '<p class="note">BÜK200' + (so.sheet ? ', Kartenblatt ' + esc(so.sheet) : '') + (so.approx ? ' (Nachbarfläche, genaue Punktabfrage fehlgeschlagen)' : '') + '</p>' +
-      (so.profile ? '<p><a href="' + esc(so.profile) + '" target="_blank" rel="noopener">Typisches Bodenprofil bei der BGR ansehen</a></p>' : '')
-    : '<p>Keine Bodeneinheit gefunden.</p>') + '</article>';
+  let h = '<header class="page-head"><p class="eyebrow">' + esc(r.name || (S.source === 'gps' ? 'Dein Standort' : 'Gewählter Punkt')) + '</p><h1>Standort</h1>' +
+    '<span class="coord">' + r.lat.toFixed(3) + '° N, ' + r.lon.toFixed(3) + '° O</span><br><span class="note">Abgefragt: ' + esc(when) + '</span></header>';
+  h += '<article class="card info">' + (r.base ? unitHTML(r.base, 'Gestein an der Oberfläche') : '<p>Die GÜK250 liefert für diesen Punkt keine Einheit.</p>') + '</article>';
+  if (r.overlay) h += '<article class="card info">' + unitHTML(r.overlay, 'Darüber: Deckschicht') + '</article>';
+  h += '<article class="card info"><section><h3>Boden</h3>' + soilHTML(r.soil) + '</section></article>';
+  h += '<article class="card info"><section><h3>Tektonik</h3><p>' + esc(faultText(r.faults)) + '</p></section></article>';
   h += '<p class="note">Kartenmaßstab 1:250.000 (GÜK250) und 1:200.000 (BÜK200): Die Angaben gelten für ein Gebiet von mehreren hundert Metern, nicht für den Punkt, auf dem du stehst.</p>';
   h += '<a class="btn primary block" href="#zeitreise">Was war hier früher los? Zur Zeitreise</a>';
   if (r.notes.length) h += '<article class="card"><h3>Hinweise</h3><ul class="notes">' + r.notes.map(n => '<li>' + esc(n) + '</li>').join('') + '</ul></article>';
-  if (r.base || r.overlay) h += '<details><summary>Rohdaten der BGR</summary><pre>' + esc(rawBlock('Grundschicht', r.base) + rawBlock('Deckschicht', r.overlay)) + '</pre></details>';
   el.innerHTML = h;
 }
 
-/* ================= Darstellung: Zeitreise ================= */
+/* ================= Zeitreise ================= */
 function slabState(i) {
   const rg = ranges();
   if (inRange(rg.overlay, i)) return 'mapped';
@@ -1265,12 +1805,6 @@ function relationText(i) {
   if (i < rg.surface[0]) return 'Aus dieser Zeit ist hier an der Oberfläche nichts kartiert. Es wurde nie abgelagert oder später wieder abgetragen.';
   return 'Aus dieser Zeit können tiefer liegende Gesteine stammen. Die Karte zeigt nur die Oberfläche und sagt nicht, ob und welche.';
 }
-function claimHTML(c) {
-  const s = c[1] ? SRC[c[1]] : null;
-  return '<li><p>' + esc(c[0]) + '</p>' + (s
-    ? '<a class="src" href="' + esc(s.u) + '" target="_blank" rel="noopener">' + esc(s.t) + '</a> <span class="src-type">· ' + esc(s.k) + '</span>'
-    : '<span class="pending">Beleg ausstehend</span>') + '</li>';
-}
 function renderStory() {
   const p = PERIODS[S.sel], c = CARDS[p.id];
   let h = '<div class="story-head"><span class="sw" style="background:' + p.color + ';width:18px;height:18px"></span><h2>' + esc(p.name) + '</h2></div>' +
@@ -1278,13 +1812,13 @@ function renderStory() {
   if (c) {
     h += '<h3>' + esc(c.h) + '</h3><ul class="claims">' + c.c.map(claimHTML).join('') + '</ul>';
     if (c.e.length) h += '<h4>Wo man es findet</h4><ul class="claims">' + c.e.map(claimHTML).join('') + '</ul>';
-    h += '<p class="draft">Entwurf: Quellen teils vorhanden, nicht fachlich geprüft</p>';
+    h += '<p class="draft" style="margin-top:16px">Entwurf: Quellen teils vorhanden, nicht fachlich geprüft</p>';
   }
   $('#story').innerHTML = h;
   $('#relation').textContent = relationText(S.sel);
   const r = S.result;
   $('#time-lede').textContent = r && r.base
-    ? 'Ausgangspunkt: ' + (S.fromCache ? 'die letzte Abfrage' : (S.source === 'gps' ? 'dein Standort' : 'der gewählte Punkt')) + ', ' + unitAge(r.base).label + '.'
+    ? 'Ausgangspunkt: ' + (r.name || (S.source === 'gps' ? 'dein Standort' : 'der gewählte Punkt')) + ', ' + r.base.age.label + '.'
     : 'Dreh die Zeit zurück und sieh, aus welchem Erdzeitalter das Gestein unter dir stammt.';
 }
 function setSel(i, instant) {
@@ -1294,16 +1828,9 @@ function setSel(i, instant) {
   renderStory();
 }
 $('#slider').addEventListener('input', e => setSel(Number(e.target.value)));
-
-/* 3D-Säule auf Canvas: eine Scheibe pro Periode, gedreht um die Hochachse, von schräg oben gesehen. */
 const Column = {
-  // Maße in Säuleneinheiten: Scheibenhöhe, Abstand, halbe Tiefe. Abstand und flacher Blickwinkel sind so gewählt,
-  // dass sich die Deckflächen benachbarter Scheiben auch beim Drehen nicht überdecken.
   cv: $('#col'), theta: -0.62, phi: 0.3, HGT: 0.4, GAP: 0.4, DEPTH: 0.75, offset: 0, target: 0, raf: 0, polys: [],
-  setTarget(i, instant) {
-    this.target = i;
-    if (instant || reducedMotion) { this.offset = i; this.draw(); } else this.animate();
-  },
+  setTarget(i, instant) { this.target = i; if (instant || reducedMotion) { this.offset = i; this.draw(); } else this.animate(); },
   animate() {
     if (this.raf) return;
     const step = () => {
@@ -1319,22 +1846,18 @@ const Column = {
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
     if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
     const ctx = cv.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, H);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
     const css = getComputedStyle(document.documentElement);
-    const ink = css.getPropertyValue('--ink').trim() || '#1b2220';
-    const muted = css.getPropertyValue('--muted').trim() || '#59645f';
+    const ink = css.getPropertyValue('--ink').trim() || '#1b2220', muted = css.getPropertyValue('--muted').trim() || '#59645f';
     const k = Math.min(W * 0.2, 84), cx = W * 0.36, cy = H * 0.5;
     const hgt = this.HGT, step = this.HGT + this.GAP, dz = this.DEPTH;
     const ct = Math.cos(this.theta), st = Math.sin(this.theta), cp = Math.cos(this.phi), sp = Math.sin(this.phi);
     const P = (x, y, z) => { const x1 = x * ct - z * st, z1 = x * st + z * ct; return [cx + x1 * k, cy - (y * cp - z1 * sp) * k]; };
     const sides = [{ q: [0, 1, 5, 4], n: [0, -1] }, { q: [1, 2, 6, 5], n: [1, 0] }, { q: [2, 3, 7, 6], n: [0, 1] }, { q: [3, 0, 4, 7], n: [-1, 0] }];
     const ALPHA = { mapped: 1, below: 0.6, missing: 0.16, unknown: 0.85 };
-    this.polys = [];
-    const labels = [];
+    this.polys = []; const labels = [];
     for (let i = PERIODS.length - 1; i >= 0; i--) {
-      const yc = (this.offset - i) * step;
-      const sy = cy - yc * cp * k;
+      const yc = (this.offset - i) * step, sy = cy - yc * cp * k;
       if (sy < -k || sy > H + k) continue;
       const y0 = yc - hgt / 2, y1 = yc + hgt / 2;
       const C = [[-1, y0, -dz], [1, y0, -dz], [1, y0, dz], [-1, y0, dz], [-1, y1, -dz], [1, y1, -dz], [1, y1, dz], [-1, y1, dz]].map(v => P(v[0], v[1], v[2]));
@@ -1342,9 +1865,8 @@ const Column = {
       ctx.globalAlpha = ALPHA[state];
       const faces = [];
       for (const f of sides) {
-        const facing = f.n[0] * st + f.n[1] * ct;          // Tiefenanteil der Flächennormale
-        if (facing <= 0) continue;
-        const right = f.n[0] * ct - f.n[1] * st;           // Anteil nach rechts auf dem Bildschirm
+        const facing = f.n[0] * st + f.n[1] * ct; if (facing <= 0) continue;
+        const right = f.n[0] * ct - f.n[1] * st;
         faces.push({ pts: f.q.map(j => C[j]), fill: shade(p.color, right > 0 ? 0.66 : 0.82) });
       }
       faces.push({ pts: [C[4], C[5], C[6], C[7]], fill: shade(p.color, 1.06) });
@@ -1357,21 +1879,16 @@ const Column = {
       this.polys.push({ i, faces: faces.map(f => f.pts) });
       labels.push({ i, y: sy, sel, state });
     }
-    // Beschriftung rechts der Säule
     const lx = cx + k * 1.5 + 12;
     labels.forEach(l => {
       ctx.globalAlpha = l.state === 'missing' && !l.sel ? 0.55 : 1;
       ctx.fillStyle = l.sel ? ink : muted;
       ctx.font = (l.sel ? '700 15px ' : '500 13px ') + getComputedStyle(document.body).fontFamily;
-      ctx.textBaseline = 'middle';
-      ctx.fillText(PERIODS[l.i].name, lx, l.y);
-      ctx.globalAlpha = 1;
+      ctx.textBaseline = 'middle'; ctx.fillText(PERIODS[l.i].name, lx, l.y); ctx.globalAlpha = 1;
     });
   },
   hit(x, y) {
-    for (let a = this.polys.length - 1; a >= 0; a--) {
-      for (const f of this.polys[a].faces) if (inPoly(x, y, f)) return this.polys[a].i;
-    }
+    for (let a = this.polys.length - 1; a >= 0; a--) for (const f of this.polys[a].faces) if (inPoly(x, y, f)) return this.polys[a].i;
     return null;
   }
 };
@@ -1389,8 +1906,7 @@ function inPoly(x, y, pts) {
   return inside;
 }
 (function bindColumn() {
-  const cv = Column.cv;
-  let g = null;
+  const cv = Column.cv; let g = null;
   cv.addEventListener('pointerdown', e => {
     try { cv.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
     const r = cv.getBoundingClientRect();
@@ -1420,14 +1936,10 @@ function inPoly(x, y, pts) {
 
 /* ================= Info ================= */
 $('#auto').checked = S.auto;
-$('#auto').addEventListener('change', e => {
-  S.auto = e.target.checked; store.set('geo.auto', S.auto);
-  if (S.auto) handlePos();
-  render();
-});
+$('#auto').addEventListener('change', e => { S.auto = e.target.checked; store.set('geo.auto', S.auto); if (S.auto) handlePos(); render(); });
 $('#clear').addEventListener('click', () => {
-  store.del('geo.result.v2'); store.del('geo.result');
-  S.result = null; S.fromCache = false; S.lastQuery = null; S.moved = 0;
+  store.del('geo.result.v3'); store.del('geo.result.v2'); store.del('geo.result');
+  S.result = null; S.fromCache = false; S.lastQuery = null; S.moved = 0; S.focus = null;
   render(); toast('Gespeicherte Abfrage gelöscht');
   if (S.pos && S.source === 'gps') handlePos();
 });
@@ -1447,20 +1959,19 @@ function showView(name) {
   if (name !== 'karte') $('#view-' + name).scrollTop = 0;
 }
 window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
-
 function render() {
-  renderNetWarn(); renderSummary(); renderBanner(); renderMarkers(); renderSite(); renderStory();
+  renderNetWarn(); renderBanner(); renderMarkers(); renderPanel(); renderSite(); renderStory(); renderAttrib();
   if (S.view === 'zeitreise') Column.draw();
 }
 
 /* ================= Start ================= */
 showView(location.hash.slice(1));
+if (S.result) { S.focus = { ll: { lat: S.result.lat, lon: S.result.lon }, name: S.result.name, unitId: null }; map.setView(S.focus.ll, 12); }
 updateSelection();
 render();
-if (S.result) map.setView({ lat: S.result.lat, lon: S.result.lon }, 10);
 if (store.get('geo.enabled', false)) startGeo();
 probeNetwork();
-window.__geo = { S, map, lookup, parseAge, unitAge, periodRange, listLabel, MATERIALS, PROCESSES, ENVIRONMENTS, AGE, setTransport: v => { transport = v; } };   // für Tests
+window.__geo = { S, map, GD, lookup, parseAge, ageInfo, lithClass, explain, selectPoint, loadHighlights, setTransport: v => { transport = v; } };   // für Tests
 })();
 </script>
 </body>
