@@ -435,6 +435,7 @@ const G250 = 'https://services.bgr.de/arcgis/rest/services/geologie/guek250/MapS
 const BUEK = 'https://services.bgr.de/arcgis/rest/services/boden/buek200/MapServer';
 const LY = { tekt: 0, eis: 2, stratOver: 4, stratBase: 5, petroOver: 7, petroBase: 8, genOver: 10, genBase: 11 };
 const STRAT_F = 'OBJECTID,einheit_id,alter_anfang,alter_ende,alter_gesamt,leg_alter_gesamt_text,lithostrat_regiostrat_1,lithostrat_regiostrat_2,lokalitaet_gebiet,maechtigkeit,s_zusatz';
+const STRAT_OVER_F = STRAT_F.replace('maechtigkeit', 'maechtigke');   // im Überlagerungslayer ist der Feldname gekürzt
 const PETRO_F = 'OBJECTID,klartext,klartext_kurz';
 const GEN_F = 'OBJECTID,petrogen_text,bprozess_text,braum_text,bmilieu_text';
 const FAULT_RADIUS = 2000;
@@ -828,7 +829,7 @@ function makeUnit(kind, s, p, g) {
   return {
     kind, id: s.objectid || null, age: a,
     strat: [clean(s.lithostrat_regiostrat_1), clean(s.lithostrat_regiostrat_2)].filter(Boolean),
-    local: clean(s.lokalitaet_gebiet), thick: clean(s.maechtigkeit), extra: clean(s.s_zusatz),
+    local: clean(s.lokalitaet_gebiet), thick: clean(s.maechtigkeit) || clean(s.maechtigke), extra: clean(s.s_zusatz),
     petro, genese: g ? clean(g.petrogen_text) : null, prozess: g ? clean(g.bprozess_text) : null,
     raum: g ? clean(g.braum_text) : null, milieu: g ? clean(g.bmilieu_text) : null
   };
@@ -869,7 +870,7 @@ async function lookup(ll, name) {
     .then(j => j && Array.isArray(j.features) && j.features[0] ? lower(j.features[0].attributes) : null);
   const qFault = getJSON(G250 + '/' + LY.tekt + '/query', Object.assign({}, pt, { distance: String(FAULT_RADIUS), units: 'esriSRUnit_Meter', returnCountOnly: 'true' }))
     .then(j => (j && typeof j.count === 'number') ? j.count : null);
-  const [sb, pb, gb, so, f, s] = await Promise.allSettled([q(LY.stratBase, STRAT_F), q(LY.petroBase, PETRO_F), q(LY.genBase, GEN_F), q(LY.stratOver, STRAT_F), qFault, soilLookup(c)]);
+  const [sb, pb, gb, so, f, s] = await Promise.allSettled([q(LY.stratBase, STRAT_F), q(LY.petroBase, PETRO_F), q(LY.genBase, GEN_F), q(LY.stratOver, STRAT_OVER_F), qFault, soilLookup(c)]);
   const val = x => x.status === 'fulfilled' ? x.value : null;
   const r = { lat: c.lat, lon: c.lon, name: name || null, at: Date.now(), base: null, overlay: null, faults: null, soil: null, notes: [], failed: false };
   if (sb.status === 'rejected') r.notes.push('Geologie: ' + errMsg(sb.reason));
@@ -1167,8 +1168,9 @@ async function loadCell(i, j) {
   const geo = (layer, fields) => getJSON(G250 + '/' + layer + '/query', Object.assign({}, env, { outFields: fields, returnGeometry: 'true',
     maxAllowableOffset: '0.0005', geometryPrecision: '4', f: 'geojson' }), 30000);
   const attrs = (layer, fields) => getJSON(G250 + '/' + layer + '/query', Object.assign({}, env, { outFields: fields, returnGeometry: 'false', f: 'json' }), 30000);
-  const [base, over] = await Promise.all([geo(LY.stratBase, STRAT_F), geo(LY.stratOver, STRAT_F)]);
-  addPolys(base, 'base'); addPolys(over, 'over');
+  const [base, over] = await Promise.allSettled([geo(LY.stratBase, STRAT_F), geo(LY.stratOver, STRAT_OVER_F)]);
+  if (base.status === 'rejected') throw base.reason;
+  addPolys(base.value, 'base'); if (over.status === 'fulfilled') addPolys(over.value, 'over');
   drawGeo();
   const [tekt, eis, pb, po] = await Promise.allSettled([geo(LY.tekt, 'OBJECTID,Linientyp'), geo(LY.eis, 'OBJECTID,LINIENTYP'),
     attrs(LY.petroBase, PETRO_F), attrs(LY.petroOver, PETRO_F)]);
