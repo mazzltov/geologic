@@ -91,6 +91,7 @@ main{position:relative;overflow:hidden;min-height:0}
 .results .muted{padding:10px;color:var(--muted);font-size:14px}
 .map-row2{position:absolute;top:calc(env(safe-area-inset-top,0px) + 64px);left:max(12px,env(safe-area-inset-left,0px));right:max(68px,calc(env(safe-area-inset-right,0px) + 68px));display:flex;pointer-events:none}
 .map-row2 > *{pointer-events:auto}
+.zoomhint{position:absolute;top:calc(env(safe-area-inset-top,0px) + 118px);left:50%;transform:translateX(-50%);padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap;color:var(--ink)}
 .crosshair{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;pointer-events:none;opacity:.7}
 .crosshair::before,.crosshair::after{content:"";position:absolute;background:var(--ink)}
 .crosshair::before{left:14px;top:0;width:2px;height:30px}
@@ -205,6 +206,7 @@ input[type=range]{width:100%;accent-color:var(--accent);margin:4px 0 0;height:32
           </button>
         </div>
         <ul class="results" id="results" hidden></ul>
+        <button class="zoomhint" id="zoomhint" type="button" hidden>Hineinzoomen, um die Geologie zu sehen</button>
         <div class="map-row2">
           <div class="seg" role="radiogroup" aria-label="Kartenebene">
             <label><input type="radio" name="mode" id="mode-age" value="age" checked><span>Alter</span></label>
@@ -830,6 +832,7 @@ class SlippyMap {
       const m = this.markers[id], p = project(m.ll.lat, m.ll.lon, this.zoom);
       m.el.style.transform = 'translate3d(' + (p.x - cz.x + w / 2) + 'px,' + (p.y - cz.y + h / 2) + 'px,0)';
     });
+    if (this.onRender) this.onRender();
   }
   latLngAt(px, py) {
     const w = this.el.clientWidth, h = this.el.clientHeight, cz = project(this.center.lat, this.center.lon, this.zoom);
@@ -1006,8 +1009,17 @@ async function run(ll, ref, name) {
 /* ================= Darstellung: Karte ================= */
 const map = new SlippyMap($('#map'));
 map.addLayer('osm', osmTiles, { maxZoom: 19 });
-map.addLayer('geo', bgrTiles(BGR.ageBase), { opacity: 0.68, minZoom: 5, maxZoom: 12 });
+/* Ab Zoom 10: Die BGR rendert große Ausschnitte sehr langsam (Messung 10.11.2026: z8 ≈ 14 s, z10 ≈ 0,8 s je Kachel),
+   und langsame Kacheln belegen die Browserverbindungen, die die Abfragen brauchen. */
+const GEO_MIN_ZOOM = 10;
+map.addLayer('geo', bgrTiles(BGR.ageBase), { opacity: 0.68, minZoom: GEO_MIN_ZOOM, maxZoom: 12 });
+map.onRender = () => {
+  const off = document.querySelector('input[name=mode]:checked').value === 'off';
+  $('#zoomhint').hidden = off || map.zoom >= GEO_MIN_ZOOM;
+};
 map.onLongPress = ll => explore(ll);
+$('#zoomhint').addEventListener('click', () => { const e = map.el; map.zoomAround(e.clientWidth / 2, e.clientHeight / 2, GEO_MIN_ZOOM); });
+map.render();
 document.querySelectorAll('input[name=mode]').forEach(r => r.addEventListener('change', () => {
   const v = document.querySelector('input[name=mode]:checked').value;
   map.setLayerUrl('geo', v === 'off' ? null : bgrTiles(v === 'age' ? BGR.ageBase : BGR.base));
