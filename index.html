@@ -1103,8 +1103,12 @@ function probeImage(src) {
     i.src = src;
   });
 }
+/* BGR: Dienstbeschreibung statt Kachel; eine Deutschland-Kachel braucht dort bis zu 20 s, die Beschreibung unter 1 s. */
+function probeBgr() {
+  return getJSON(BGR.guek, { f: 'json' }).then(j => !!(j && (j.layers || j.mapName || j.currentVersion))).catch(() => false);
+}
 function probeNetwork() {
-  return Promise.all([probeImage(osmTiles(5, 16, 10)), probeImage(bgrTiles(BGR.ageBase)(6, 33, 21))])
+  return Promise.all([probeImage(osmTiles(5, 16, 10)), probeBgr()])
     .then(([osm, bgr]) => { S.net = { osm, bgr }; render(); return S.net; });
 }
 function contextHint() {
