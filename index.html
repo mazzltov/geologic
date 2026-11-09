@@ -582,6 +582,7 @@ function spanText(start, end) {
   if (start >= 1000) return 'vor ' + dec(start / 1000) + ' Mrd. bis ' + dec(end) + ' Mio. Jahren';
   if (start < 0.1) return 'vor ' + Math.round(start * 1000) + '.000 Jahren bis heute';
   if (end <= 0) return 'vor ' + dec(start) + ' Mio. Jahren bis heute';
+  if (end < 0.1) return 'vor ' + dec(start) + ' Mio. bis ' + (Math.round(end * 1000) * 1000).toLocaleString('de-DE') + ' Jahren';
   return 'vor ' + dec(start) + ' bis ' + dec(end) + ' Mio. Jahren';
 }
 function spanNote(a) {
