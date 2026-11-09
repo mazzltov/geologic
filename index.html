@@ -77,6 +77,7 @@ main{position:relative;overflow:hidden;min-height:0}
 @keyframes pulse{from{transform:scale(.3);opacity:1}to{transform:scale(1.2);opacity:0}}
 .marker.hl{pointer-events:auto}
 .marker.hl > span{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;display:grid;place-items:center;color:#fff;font:700 12px/1 var(--font-ui);border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:pointer}
+.marker.hl.anon > span{width:16px;height:16px;margin:-8px 0 0 -8px;font-size:0;border-width:1.5px}
 .marker.hl.sel > span{width:32px;height:32px;margin:-16px 0 0 -16px;box-shadow:0 0 0 3px var(--ink)}
 
 .map-ui{position:absolute;inset:0;pointer-events:none}
@@ -242,7 +243,7 @@ pre{font-family:var(--font-mono);font-size:12px;white-space:pre-wrap;overflow-wr
       <div class="map-ui">
         <div class="map-top">
           <form class="search" id="search-form" role="search" autocomplete="off">
-            <input id="search" type="search" placeholder="Ort suchen oder Beispiel wählen" enterkeyhint="search" aria-label="Ort suchen oder Koordinaten eingeben">
+            <input id="search" type="search" placeholder="Ort suchen" enterkeyhint="search" aria-label="Ort suchen oder Koordinaten eingeben">
             <button type="submit" aria-label="Suchen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/></svg></button>
           </form>
           <button class="round" id="layers-btn" type="button" aria-label="Kartenebenen" aria-expanded="false" aria-controls="layers">
@@ -593,13 +594,14 @@ const inRange = (r, i) => !!r && i >= r[0] && i <= r[1];
 
 /* ================= Gesteinsgruppen (Einfärbung „Gestein“) ================= */
 const LITH = [
-  ['moor', 'Torf und Mudde', '#7a5b3a', /torf|moor|mudde/],
+  ['impakt', 'Impaktgestein (Ries)', '#c0392b', /suevit|impakt|bunte brekzie|trümmermassen/],
+  ['moor', 'Torf und Mudde', '#7a5b3a', /torf|moor|mudde|organische substanz/],
   ['loess', 'Löss und Lösslehm', '#efd9a0', /löss|loess/],
   ['salz', 'Salz, Gips, Anhydrit', '#86cfe0', /salz|gips|anhydrit/],
   ['kohle', 'Kohle', '#3d3d3d', /kohle/],
   ['pluton', 'Tiefengestein (z. B. Granit)', '#e07b91', /granit|granodiorit|diorit|gabbro|syenit|tonalit|monzo|pegmatit|plutonit/],
   ['vulkan', 'Vulkangestein', '#9a6bb7', /basalt|basanit|phonolith|trachyt|tuff|rhyolith|andesit|latit|tephr|vulkan|diabas|keratophyr|porphyr|schlacke|lava/],
-  ['meta', 'Metamorphes Gestein', '#a8806b', /gneis|glimmerschiefer|phyllit|quarzit|marmor|amphibolit|migmatit|granulit|eklogit|serpentinit|hornfels|metamorph|skarn|grünschiefer/],
+  ['meta', 'Metamorphes Gestein', '#a8806b', /kristallin|gneis|glimmerschiefer|phyllit|quarzit|marmor|amphibolit|migmatit|granulit|eklogit|serpentinit|hornfels|metamorph|skarn|grünschiefer/],
   ['karbonat', 'Kalk, Dolomit, Mergel', '#6fa8dc', /kalk|dolomit|mergel|kreide/],
   ['sandstein', 'Sandstein, Konglomerat', '#e3a35a', /sandstein|konglomerat|grauwacke|arkose|brekzie|breccie/],
   ['tonstein', 'Ton-, Schluffstein, Schiefer', '#8fa07a', /tonstein|schluffstein|tonschiefer|siltstein|schieferton|pelit|kieselschiefer|lydit|schiefer/],
@@ -654,6 +656,7 @@ const GLOSS = [
   [/gips|anhydrit/, 'Gips und Anhydrit', 'Calciumsulfat-Gesteine, die beim Eindampfen von Meerwasser ausfallen. Gips enthält Wasser, Anhydrit nicht.', 'Gips'],
   [/kieselschiefer|lydit/, 'Kieselschiefer', 'Dunkles, sehr hartes Gestein aus Kieselsäure, oft aus Schalen von Radiolarien.', 'Lydit'],
   [/schreibkreide/, 'Schreibkreide', 'Weicher, weißer Kalk aus den Skeletten winziger Algen (Coccolithen).', 'Kreide_(Gestein)'],
+  [/suevit/, 'Suevit', 'Gestein aus Bruchstücken und Glas, das beim Meteoriteneinschlag des Nördlinger Ries vor etwa 14,8 Mio. Jahren entstand.', 'Suevit'],
   [/aufschüttung|auffüllung|anthropogen/, 'Künstliche Aufschüttung', 'Vom Menschen umgelagertes oder aufgeschüttetes Material, zum Beispiel Bauschutt oder Halden.', null],
   [/flussablagerung|bachablagerung|fluviatil|fluvial/, 'Flussablagerungen', 'Sand, Kies und Schlamm, die Bäche und Flüsse transportiert und in ihrem Tal abgelagert haben.', 'Fluviatil'],
   [/aue/, 'Aue', 'Talboden eines Flusses, der bei Hochwasser überflutet wird.', 'Aue'],
@@ -1359,7 +1362,7 @@ function renderHlMarkers() {
   map.clearMarkers('hl:');
   if (!S.showHl || !S.hl) return;
   S.hl.forEach(h => {
-    map.setMarker('hl:' + h.id, h.ll, 'hl' + (S.hlSel === h.id ? ' sel' : ''),
+    map.setMarker('hl:' + h.id, h.ll, 'hl' + (h.name ? '' : ' anon') + (S.hlSel === h.id ? ' sel' : ''),
       '<span style="background:' + h.type[3] + '" title="' + esc(h.name || h.type[1]) + '">' + esc(h.type[2]) + '</span>',
       () => { S.hlSel = h.id; S.tab = 'hl'; openPanel(true); renderHlMarkers(); renderPanel(); });
   });
