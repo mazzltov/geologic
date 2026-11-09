@@ -1157,7 +1157,7 @@ function pumpQueue() {
     if (GD.cells.has(k)) continue;
     GD.busy++; GD.cells.set(k, 'loading');
     loadCell(c.i, c.j).then(() => { GD.cells.set(k, 'done'); })
-      .catch(() => { GD.cells.set(k, 'error'); setTimeout(() => { if (GD.cells.get(k) === 'error') GD.cells.delete(k); }, 30000); })
+      .catch(e => { GD.lastError = String(e && e.stack || e); GD.cells.set(k, 'error'); setTimeout(() => { if (GD.cells.get(k) === 'error') GD.cells.delete(k); }, 30000); })
       .finally(() => { GD.busy--; drawGeo(); renderLegendIfOpen(); renderLoadHint(); pumpQueue(); });
   }
 }
